@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anti-Counterfeiting QR System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            grid-column: span 2;
+        }
+        h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .qr-container {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            border: 2px dashed #e2e8f0;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .result {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        .success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+        .error {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+        .info {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border-radius: 10px;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+        .key-info {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        .key-info h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+        .url-display {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .copy-btn {
+            background: linear-gradient(135deg, #38a169, #2f855a);
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+        .qr-btn {
+            background: linear-gradient(135deg, #3182ce, #2c5282);
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                grid-column: span 1;
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Anti-Counterfeiting QR System</h1>
+        
+        <!-- Generator Panel -->
+        <div class="panel">
+            <h2>🏭 Product QR Generator</h2>
+            
+            <div class="input-group">
+                <label for="productId">Product ID / SKU:</label>
+                <input type="text" id="productId" placeholder="e.g., PROD-2024-001" />
+            </div>
+            
+            <div class="input-group">
+                <label for="productName">Product Name (Optional):</label>
+                <input type="text" id="productName" placeholder="e.g., Limited Edition Sneakers" />
+            </div>
+            
+            <div class="input-group">
+                <label for="batchId">Batch/Lot ID (Optional):</label>
+                <input type="text" id="batchId" placeholder="e.g., BATCH-2024-Q4" />
+            </div>
+            
+            <button onclick="generateKeys()" id="keyBtn">🔑 Generate New Key Pair</button>
+            <button onclick="generateQR()" id="genBtn" disabled>🔐 Generate Signed QR Code</button>
+            
+            <div class="qr-container">
+                <div id="qrcode"></div>
+                <div id="generationResult"></div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number" id="genCount">0</div>
+                    <div class="stat-label">Generated</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="genTime">0ms</div>
+                    <div class="stat-label">Last Gen Time</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="qrSize">0</div>
+                    <div class="stat-label">Data Size</div>
+                </div>
+            </div>
+            
+            <div id="keyDisplay" class="key-info" style="display: none;">
+                <h3>🔑 Your Key Pair (Save these securely!)</h3>
+                <div id="privateKeyDisplay"></div>
+                <div id="publicKeyDisplay"></div>
+            </div>
+        </div>
+
+        <!-- Verifier Panel -->
+        <div class="panel">
+            <h2>✅ QR Code Verifier</h2>
+            
+            <div class="info" style="margin-bottom: 20px;">
+                📱 <strong>How to verify:</strong><br>
+                1. Scan QR code with any QR app<br>
+                2. Copy the full URL or just the data part<br>
+                3. Paste it below to verify authenticity
+            </div>
+            
+            <div class="input-group">
+                <label for="manualPayload">QR Code Data or URL:</label>
+                <textarea id="manualPayload" rows="4" placeholder="Paste QR code data here...
+Example: https://verify.yourdomain.com/?p=eyJkYXRhIjp7ImlkIjoiUFJPRC0yMDI0LTAwMSIsInRpbWVzdGFtcCI6MTcwMzE4..."></textarea>
+            </div>
+            
+            <button onclick="verifyManual()">🔍 Verify Signature</button>
+            
+            <div id="verificationResult"></div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number" id="verifyCount">0</div>
+                    <div class="stat-label">Verified</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="verifyTime">0ms</div>
+                    <div class="stat-label">Last Verify Time</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="successRate">0%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let privateKey = null;
+        let publicKey = null;
+        let publicKeyPem = null;
+        
+        // Statistics
+        let stats = {
+            generated: 0,
+            verified: 0,
+            successful: 0,
+            lastGenTime: 0,
+            lastVerifyTime: 0
+        };
+
+        // Utility Functions
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function toB64uStr(arrayBuffer) {
+            return arrayBufferToBase64(arrayBuffer)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        function fromB64uStr(str) {
+            if (!str) return null;
+            str = str.replace(/-/g, '+').replace(/_/g, '/');
+            while (str.length % 4) str += '=';
+            return atob(str);
+        }
+
+        // Key Generation
+        async function generateKeys() {
+            try {
+                showResult('generationResult', '🔑 Generating cryptographic key pair...', 'info');
+                
+                const keyPair = await crypto.subtle.generateKey(
+                    {
+                        name: 'ECDSA',
+                        namedCurve: 'P-256'
+                    },
+                    true,
+                    ['sign', 'verify']
+                );
+
+                privateKey = keyPair.privateKey;
+                publicKey = keyPair.publicKey;
+
+                // Export keys to PEM format
+                const privateKeyBuffer = await crypto.subtle.exportKey('pkcs8', privateKey);
+                const publicKeyBuffer = await crypto.subtle.exportKey('spki', publicKey);
+                
+                const privateKeyB64 = arrayBufferToBase64(privateKeyBuffer);
+                const publicKeyB64 = arrayBufferToBase64(publicKeyBuffer);
+                
+                const privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${privateKeyB64.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+                publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${publicKeyB64.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+
+                // Display keys
+                document.getElementById('privateKeyDisplay').innerHTML = `
+                    <h4 style="color: #e53e3e; margin: 10px 0;">🔒 Private Key (Keep Secret!):</h4>
+                    <div style="background: #fed7d7; padding: 10px; border-radius: 5px; word-break: break-all; max-height: 100px; overflow-y: auto;">${privateKeyPem}</div>
+                    <button class="copy-btn" onclick="copyToClipboard('${privateKeyPem.replace(/\n/g, '\\n')}', 'Private key')">📋 Copy Private Key</button>
+                `;
+                
+                document.getElementById('publicKeyDisplay').innerHTML = `
+                    <h4 style="color: #38a169; margin: 10px 0;">🌍 Public Key (Safe to Share):</h4>
+                    <div style="background: #c6f6d5; padding: 10px; border-radius: 5px; word-break: break-all; max-height: 100px; overflow-y: auto;">${publicKeyPem}</div>
+                    <button class="copy-btn" onclick="copyToClipboard('${publicKeyPem.replace(/\n/g, '\\n')}', 'Public key')">📋 Copy Public Key</button>
+                `;
+                
+                document.getElementById('keyDisplay').style.display = 'block';
+                document.getElementById('genBtn').disabled = false;
+                document.getElementById('keyBtn').textContent = '🔄 Generate New Key Pair';
+                
+                showResult('generationResult', '✅ Key pair generated successfully! Save both keys securely.', 'success');
+                
+            } catch (error) {
+                console.error('Key generation error:', error);
+                showResult('generationResult', '❌ Failed to generate keys: ' + error.message, 'error');
+            }
+        }
+
+        // Copy to clipboard helper
+        function copyToClipboard(text, description) {
+            const cleanText = text.replace(/\\n/g, '\n');
+            navigator.clipboard.writeText(cleanText).then(() => {
+                showResult('generationResult', `✅ ${description} copied to clipboard!`, 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = cleanText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showResult('generationResult', `✅ ${description} copied to clipboard!`, 'success');
+            });
+        }
+
+        // QR Code Generation
+        async function generateQR() {
+            if (!privateKey) {
+                showResult('generationResult', 'Please generate keys first!', 'error');
+                return;
+            }
+
+            const startTime = performance.now();
+            const productId = document.getElementById('productId').value.trim();
+            const productName = document.getElementById('productName').value.trim();
+            const batchId = document.getElementById('batchId').value.trim();
+            
+            if (!productId) {
+                showResult('generationResult', 'Product ID is required!', 'error');
+                return;
+            }
+
+            try {
+                // Create product data
+                const productData = {
+                    id: productId,
+                    timestamp: Date.now(),
+                    ...(productName && { name: productName }),
+                    ...(batchId && { batch: batchId })
+                };
+
+                // Sign the product data
+                const dataToSign = JSON.stringify(productData, Object.keys(productData).sort());
+                const encoder = new TextEncoder();
+                const dataBuffer = encoder.encode(dataToSign);
+                
+                const signature = await crypto.subtle.sign(
+                    { name: 'ECDSA', hash: 'SHA-256' },
+                    privateKey,
+                    dataBuffer
+                );
+
+                // Create signed payload
+                const signedPayload = {
+                    data: productData,
+                    sig: toB64uStr(signature)
+                };
+
+                const payloadStr = toB64uStr(new TextEncoder().encode(JSON.stringify(signedPayload)));
+                const qrData = `https://verify.yourdomain.com/?p=${payloadStr}`;
+
+                // Display QR data
+                const qrContainer = document.getElementById('qrcode');
+                displayQRData(qrData, qrContainer);
+
+                const endTime = performance.now();
+                stats.generated++;
+                stats.lastGenTime = Math.round(endTime - startTime);
+                
+                updateStats();
+                
+                showResult('generationResult', 
+                    `✅ QR Code data generated for Product ID: ${productId}
+                    ${productName ? `\nProduct: ${productName}` : ''}
+                    ${batchId ? `\nBatch: ${batchId}` : ''}
+                    \n🔗 Ready for integration with your systems`, 
+                    'success'
+                );
+
+            } catch (error) {
+                console.error('Generation error:', error);
+                showResult('generationResult', `❌ Failed to generate QR code: ${error.message}`, 'error');
+            }
+        }
+
+        // Display QR Data
+        function displayQRData(qrData, container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 48px; margin-bottom: 15px;">📱</div>
+                    <h3 style="color: #2d3748; margin-bottom: 15px;">QR Code Generated!</h3>
+                    <div class="url-display">${qrData}</div>
+                    <p style="color: #718096; margin: 10px 0;">
+                        <strong>Instructions:</strong><br>
+                        1. Copy the URL above<br>
+                        2. Use any QR generator to create a QR image<br>
+                        3. Or use this URL directly for verification
+                    </p>
+                    <button class="copy-btn" onclick="copyToClipboard('${qrData}', 'QR data')">📋 Copy QR Data</button>
+                    <button class="qr-btn" onclick="openQRGenerator('${encodeURIComponent(qrData)}')">🖼️ Generate QR Image</button>
+                </div>
+            `;
+        }
+
+        // Open QR generator
+        function openQRGenerator(encodedData) {
+            window.open(`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodedData}`, '_blank');
+        }
+
+        // QR Code Verification
+        async function verifyPayload(payloadStr) {
+            if (!publicKey) {
+                return {
+                    valid: false,
+                    message: '❌ No public key available for verification'
+                };
+            }
+
+            const startTime = performance.now();
+            
+            try {
+                const payloadJson = fromB64uStr(payloadStr);
+                const payload = JSON.parse(payloadJson);
+                
+                if (!payload.data || !payload.sig) {
+                    throw new Error('Invalid payload structure');
+                }
+
+                // Verify signature
+                const dataToVerify = JSON.stringify(payload.data, Object.keys(payload.data).sort());
+                const dataBuffer = new TextEncoder().encode(dataToVerify);
+                let signatureB64 = payload.sig.replace(/-/g, '+').replace(/_/g, '/');
+                while (signatureB64.length % 4) signatureB64 += '=';
+                const signature = base64ToArrayBuffer(signatureB64);
+
+                const isValid = await crypto.subtle.verify(
+                    { name: 'ECDSA', hash: 'SHA-256' },
+                    publicKey,
+                    signature,
+                    dataBuffer
+                );
+
+                const endTime = performance.now();
+                stats.verified++;
+                if (isValid) stats.successful++;
+                stats.lastVerifyTime = Math.round(endTime - startTime);
+                
+                updateStats();
+
+                if (isValid) {
+                    const data = payload.data;
+                    const timestamp = new Date(data.timestamp).toLocaleString();
+                    return {
+                        valid: true,
+                        message: `✅ AUTHENTIC PRODUCT VERIFIED
+                        \n🏷️ Product ID: ${data.id}
+                        ${data.name ? `\n📦 Product: ${data.name}` : ''}
+                        ${data.batch ? `\n🏭 Batch: ${data.batch}` : ''}
+                        \n⏰ Generated: ${timestamp}
+                        \n🔗 Cryptographically secure and tamper-proof`
+                    };
+                } else {
+                    return {
+                        valid: false,
+                        message: '❌ COUNTERFEIT DETECTED - Invalid signature!'
+                    };
+                }
+
+            } catch (error) {
+                console.error('Verification error:', error);
+                return {
+                    valid: false,
+                    message: '❌ INVALID QR CODE - Cannot parse or verify: ' + error.message
+                };
+            }
+        }
+
+        async function verifyManual() {
+            const payload = document.getElementById('manualPayload').value.trim();
+            if (!payload) {
+                showResult('verificationResult', 'Please enter QR code data', 'error');
+                return;
+            }
+
+            // Extract payload if it's a full URL
+            const payloadData = payload.includes('p=') ? payload.split('p=')[1] : payload;
+            const result = await verifyPayload(payloadData);
+            
+            showResult('verificationResult', result.message, result.valid ? 'success' : 'error');
+        }
+
+        // Utility Functions
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${message}</div>`;
+            element.querySelector('.result').style.whiteSpace = 'pre-line';
+        }
+
+        function updateStats() {
+            document.getElementById('genCount').textContent = stats.generated;
+            document.getElementById('verifyCount').textContent = stats.verified;
+            document.getElementById('genTime').textContent = `${stats.lastGenTime}ms`;
+            document.getElementById('verifyTime').textContent = `${stats.lastVerifyTime}ms`;
+            
+            const productIdLength = document.getElementById('productId').value.length;
+            document.getElementById('qrSize').textContent = `${productIdLength + 200}B`;
+            
+            const successRate = stats.verified > 0 ? Math.round((stats.successful / stats.verified) * 100) : 0;
+            document.getElementById('successRate').textContent = `${successRate}%`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStats();
+            showResult('generationResult', '🚀 Anti-counterfeiting system ready! Generate keys to start.', 'info');
+            
+            // Add Enter key support
+            document.getElementById('productId').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !document.getElementById('genBtn').disabled) {
+                    generateQR();
+                }
+            });
+            
+            document.getElementById('manualPayload').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    verifyManual();
+                }
+            });
+            
+            // Focus on first input
+            document.getElementById('productId').focus();
+        });
+    </script>
+</body>
+</html>
