@@ -49,6 +49,16 @@
             justify-content: center;
             font-size: 40px;
         }
+        .auto-verify-message {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #856404;
+            font-weight: 600;
+        }
         .instructions {
             background: #f8f9fa;
             border-radius: 12px;
@@ -61,13 +71,10 @@
             font-size: 16px;
             margin-bottom: 12px;
         }
-        .instructions ol {
-            margin-left: 20px;
+        .instructions p {
             color: #555;
             line-height: 1.8;
-        }
-        .instructions li {
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
         .input-group {
             margin-bottom: 20px;
@@ -88,7 +95,7 @@
             font-family: 'Courier New', monospace;
             transition: border-color 0.3s;
             resize: vertical;
-            min-height: 100px;
+            min-height: 80px;
         }
         textarea:focus {
             outline: none;
@@ -109,9 +116,6 @@
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-        button:active {
-            transform: translateY(0);
         }
         .result {
             margin-top: 25px;
@@ -181,28 +185,9 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .help-text {
-            color: #666;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        .auto-verify-message {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-            color: #856404;
-            font-weight: 600;
-        }
         @media (max-width: 600px) {
-            .card {
-                padding: 30px 20px;
-            }
-            .logo h1 {
-                font-size: 24px;
-            }
+            .card { padding: 30px 20px; }
+            .logo h1 { font-size: 24px; }
         }
     </style>
 </head>
@@ -220,25 +205,19 @@
             </div>
 
             <div class="instructions" id="instructions">
-                <h3>How to verify your product:</h3>
-                <ol>
-                    <li>Scan the QR code on your product with your phone camera</li>
-                    <li>You'll be automatically redirected here</li>
-                    <li>The verification happens instantly</li>
-                    <li>Or paste the QR data manually below</li>
-                </ol>
+                <h3>Scan & Verify Instantly:</h3>
+                <p>Scan the QR code on your product with your phone camera. You'll be automatically brought here and verification happens instantly.</p>
+                <p><strong>Backup option:</strong> If scanning didn't work, paste the QR data in the box below.</p>
             </div>
 
             <div class="input-group" id="inputGroup">
-                <label for="qrData">Or paste QR code data manually:</label>
-                <textarea id="qrData" placeholder="Paste the scanned QR code URL here (optional)..."></textarea>
-                <p class="help-text">Only needed if scanning didn't work automatically</p>
+                <label for="qrData">Manual Input (if needed):</label>
+                <textarea id="qrData" placeholder="Paste QR data here only if automatic scan didn't work..."></textarea>
             </div>
 
             <button onclick="verifyProduct()" id="verifyBtn">Verify Product</button>
 
             <div class="loader" id="loader"></div>
-
             <div id="result" class="result"></div>
         </div>
 
@@ -260,14 +239,8 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
             try {
                 const keyData = PUBLIC_KEY_PEM.replace(/-----.*-----/g, '').replace(/\s/g, '');
                 const keyBuffer = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
-                
-                publicKey = await crypto.subtle.importKey(
-                    'spki',
-                    keyBuffer.buffer,
-                    { name: 'ECDSA', namedCurve: 'P-256' },
-                    false,
-                    ['verify']
-                );
+                publicKey = await crypto.subtle.importKey('spki', keyBuffer.buffer, 
+                    { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
             } catch (error) {
                 console.error('Failed to load verification key:', error);
             }
@@ -327,11 +300,7 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
                 const signature = base64ToArrayBuffer(signatureB64);
 
                 const isValid = await crypto.subtle.verify(
-                    { name: 'ECDSA', hash: 'SHA-256' },
-                    publicKey,
-                    signature,
-                    dataBuffer
-                );
+                    { name: 'ECDSA', hash: 'SHA-256' }, publicKey, signature, dataBuffer);
 
                 loader.style.display = 'none';
 
@@ -340,7 +309,6 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
                 } else {
                     showResult('fake', 'Counterfeit Warning', {});
                 }
-
             } catch (error) {
                 loader.style.display = 'none';
                 console.error('Verification error:', error);
@@ -353,7 +321,6 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
             
             if (type === 'authentic') {
                 const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown';
-                
                 resultDiv.innerHTML = `
                     <div class="result-icon">✅</div>
                     <h3>${title}</h3>
@@ -367,7 +334,7 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
                         <p><strong>Verified:</strong> ${timestamp}</p>
                     </div>
                     <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #666;">
-                        This product has passed cryptographic authentication and is protected against counterfeiting.
+                        This product has passed cryptographic authentication.
                     </p>
                 `;
                 resultDiv.className = 'result authentic';
@@ -379,26 +346,24 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
                         WARNING: This product could not be verified.
                     </p>
                     <div class="result-details">
-                        <p><strong>Why this happens:</strong></p>
+                        <p><strong>Possible reasons:</strong></p>
                         <ul style="margin: 10px 0 10px 20px; color: #555;">
                             <li>Invalid or damaged QR code</li>
                             <li>Counterfeit product</li>
-                            <li>QR code copied or tampered with</li>
+                            <li>QR code tampered with</li>
                         </ul>
                     </div>
                     <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #666;">
-                        If you believe this is an error, please contact our support team.
+                        Contact support if you believe this is an error.
                     </p>
                 `;
                 resultDiv.className = 'result fake';
             }
-
             resultDiv.style.display = 'block';
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
             await initializeVerifier();
-            
             const urlParams = new URLSearchParams(window.location.search);
             const payload = urlParams.get('p');
             
@@ -408,432 +373,10 @@ ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
                 document.getElementById('inputGroup').style.display = 'none';
                 document.getElementById('verifyBtn').style.display = 'none';
                 document.getElementById('qrData').value = window.location.href;
-                
                 setTimeout(() => {
                     document.getElementById('autoVerifyMessage').style.display = 'none';
                     verifyProduct(true);
                 }, 1000);
-            }
-        });
-
-        document.getElementById('qrData').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                verifyProduct();
-            }
-        });
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Product Authenticity</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            max-width: 500px;
-            width: 100%;
-        }
-        .card {
-            background: white;
-            border-radius: 20px;
-            padding: 40px 30px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo h1 {
-            color: #1a1a2e;
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-        .logo p {
-            color: #666;
-            font-size: 14px;
-        }
-        .shield-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-        }
-        .instructions {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-left: 4px solid #667eea;
-        }
-        .instructions h3 {
-            color: #1a1a2e;
-            font-size: 16px;
-            margin-bottom: 12px;
-        }
-        .instructions ol {
-            margin-left: 20px;
-            color: #555;
-            line-height: 1.8;
-        }
-        .instructions li {
-            margin-bottom: 8px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #1a1a2e;
-            font-size: 14px;
-        }
-        textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            font-size: 14px;
-            font-family: 'Courier New', monospace;
-            transition: border-color 0.3s;
-            resize: vertical;
-            min-height: 100px;
-        }
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            width: 100%;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-        button:active {
-            transform: translateY(0);
-        }
-        .result {
-            margin-top: 25px;
-            padding: 20px;
-            border-radius: 12px;
-            display: none;
-            animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .result.authentic {
-            background: linear-gradient(135deg, #d4edda, #c3e6cb);
-            border: 2px solid #28a745;
-        }
-        .result.fake {
-            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-            border: 2px solid #dc3545;
-        }
-        .result-icon {
-            font-size: 48px;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        .result h3 {
-            text-align: center;
-            font-size: 20px;
-            margin-bottom: 15px;
-            color: #1a1a2e;
-        }
-        .result-details {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-        }
-        .result-details p {
-            margin: 8px 0;
-            color: #333;
-            font-size: 14px;
-        }
-        .result-details strong {
-            color: #1a1a2e;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: white;
-            font-size: 13px;
-        }
-        .footer a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-            display: none;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .help-text {
-            color: #666;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        @media (max-width: 600px) {
-            .card {
-                padding: 30px 20px;
-            }
-            .logo h1 {
-                font-size: 24px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <div class="logo">
-                <div class="shield-icon">🛡️</div>
-                <h1>Verify Authenticity</h1>
-                <p>Protect yourself from counterfeit products</p>
-            </div>
-
-            <div class="instructions">
-                <h3>How to verify your product:</h3>
-                <ol>
-                    <li>Scan the QR code on your product with your phone camera</li>
-                    <li>Copy the URL that appears</li>
-                    <li>Paste it in the box below</li>
-                    <li>Click "Verify Product"</li>
-                </ol>
-            </div>
-
-            <div class="input-group">
-                <label for="qrData">Paste QR Code Data:</label>
-                <textarea id="qrData" placeholder="Paste the scanned QR code URL here..."></textarea>
-                <p class="help-text">The URL should start with: https://asreptilesllc1-svg.github.io/Anti-Counterfeit/?p=...</p>
-            </div>
-
-            <button onclick="verifyProduct()">Verify Product</button>
-
-            <div class="loader" id="loader"></div>
-
-            <div id="result" class="result"></div>
-        </div>
-
-        <div class="footer">
-            <p>Powered by cryptographic security</p>
-            <p>Questions? <a href="mailto:support@yourcompany.com">Contact Support</a></p>
-        </div>
-    </div>
-
-    <script>
-        // Your public key for verification (paste your actual public key here)
-        const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-PASTE_YOUR_PUBLIC_KEY_HERE
------END PUBLIC KEY-----`;
-
-        let publicKey = null;
-
-        // Initialize on page load
-        async function initializeVerifier() {
-            try {
-                // Import public key
-                const keyData = PUBLIC_KEY_PEM.replace(/-----.*-----/g, '').replace(/\s/g, '');
-                const keyBuffer = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
-                
-                publicKey = await crypto.subtle.importKey(
-                    'spki',
-                    keyBuffer.buffer,
-                    { name: 'ECDSA', namedCurve: 'P-256' },
-                    false,
-                    ['verify']
-                );
-            } catch (error) {
-                console.error('Failed to load verification key:', error);
-            }
-        }
-
-        // Utility functions
-        function fromB64uStr(str) {
-            if (!str) return null;
-            str = str.replace(/-/g, '+').replace(/_/g, '/');
-            while (str.length % 4) str += '=';
-            return atob(str);
-        }
-
-        function base64ToArrayBuffer(base64) {
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        // Main verification function
-        async function verifyProduct() {
-            const qrData = document.getElementById('qrData').value.trim();
-            const resultDiv = document.getElementById('result');
-            const loader = document.getElementById('loader');
-
-            // Clear previous results
-            resultDiv.style.display = 'none';
-            resultDiv.className = 'result';
-
-            if (!qrData) {
-                showResult('fake', 'Please paste QR code data', {});
-                return;
-            }
-
-            // Show loader
-            loader.style.display = 'block';
-
-            try {
-                // Extract payload from URL
-                let payloadStr;
-                if (qrData.includes('?p=')) {
-                    payloadStr = qrData.split('?p=')[1].split('&')[0];
-                } else {
-                    payloadStr = qrData;
-                }
-
-                // Decode payload
-                const payloadJson = fromB64uStr(payloadStr);
-                const payload = JSON.parse(payloadJson);
-
-                if (!payload.data || !payload.sig) {
-                    throw new Error('Invalid QR code format');
-                }
-
-                // Verify signature
-                const dataToVerify = JSON.stringify(payload.data, Object.keys(payload.data).sort());
-                const dataBuffer = new TextEncoder().encode(dataToVerify);
-                
-                let signatureB64 = payload.sig.replace(/-/g, '+').replace(/_/g, '/');
-                while (signatureB64.length % 4) signatureB64 += '=';
-                const signature = base64ToArrayBuffer(signatureB64);
-
-                const isValid = await crypto.subtle.verify(
-                    { name: 'ECDSA', hash: 'SHA-256' },
-                    publicKey,
-                    signature,
-                    dataBuffer
-                );
-
-                loader.style.display = 'none';
-
-                if (isValid) {
-                    showResult('authentic', 'Authentic Product Verified', payload.data);
-                } else {
-                    showResult('fake', 'Counterfeit Warning', {});
-                }
-
-            } catch (error) {
-                loader.style.display = 'none';
-                console.error('Verification error:', error);
-                showResult('fake', 'Invalid QR Code', {});
-            }
-        }
-
-        // Display result
-        function showResult(type, title, data) {
-            const resultDiv = document.getElementById('result');
-            
-            if (type === 'authentic') {
-                const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown';
-                
-                resultDiv.innerHTML = `
-                    <div class="result-icon">✅</div>
-                    <h3>${title}</h3>
-                    <p style="text-align: center; color: #155724; font-weight: 600; margin-bottom: 15px;">
-                        This product is GENUINE and verified by cryptographic signature.
-                    </p>
-                    <div class="result-details">
-                        <p><strong>Product ID:</strong> ${data.id || 'N/A'}</p>
-                        ${data.name ? `<p><strong>Product Name:</strong> ${data.name}</p>` : ''}
-                        ${data.batch ? `<p><strong>Batch/Lot:</strong> ${data.batch}</p>` : ''}
-                        <p><strong>Verified:</strong> ${timestamp}</p>
-                    </div>
-                    <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #666;">
-                        This product has passed cryptographic authentication and is protected against counterfeiting.
-                    </p>
-                `;
-                resultDiv.className = 'result authentic';
-            } else {
-                resultDiv.innerHTML = `
-                    <div class="result-icon">⚠️</div>
-                    <h3>${title}</h3>
-                    <p style="text-align: center; color: #721c24; font-weight: 600; margin-bottom: 15px;">
-                        WARNING: This product could not be verified.
-                    </p>
-                    <div class="result-details">
-                        <p><strong>Why this happens:</strong></p>
-                        <ul style="margin: 10px 0 10px 20px; color: #555;">
-                            <li>Invalid or damaged QR code</li>
-                            <li>Counterfeit product</li>
-                            <li>QR code copied or tampered with</li>
-                        </ul>
-                    </div>
-                    <p style="text-align: center; margin-top: 15px; font-size: 13px; color: #666;">
-                        If you believe this is an error, please contact our support team.
-                    </p>
-                `;
-                resultDiv.className = 'result fake';
-            }
-
-            resultDiv.style.display = 'block';
-        }
-
-        // Auto-verify if URL contains data
-        window.addEventListener('DOMContentLoaded', async () => {
-            await initializeVerifier();
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const payload = urlParams.get('p');
-            
-            if (payload) {
-                document.getElementById('qrData').value = window.location.href;
-                setTimeout(() => verifyProduct(), 500);
-            }
-        });
-
-        // Allow Enter key to verify
-        document.getElementById('qrData').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                verifyProduct();
             }
         });
     </script>
