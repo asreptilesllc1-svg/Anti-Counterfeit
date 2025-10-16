@@ -210,7 +210,33 @@
                 <input type="text" id="batchId" placeholder="e.g., BATCH-2024-Q4" />
             </div>
             
-            <button onclick="generateKeys()" id="keyBtn">🔑 Generate New Key Pair</button>
+            <button onclick="toggleKeyOptions()" id="toggleBtn">🔑 Key Management</button>
+            
+            <div id="keyOptions" style="display: none; margin-bottom: 15px;">
+                <button onclick="generateKeys()" id="keyBtn" style="background: linear-gradient(135deg, #38a169, #2f855a);">➕ Generate New Key Pair</button>
+                <button onclick="showLoadKeys()" id="loadBtn" style="background: linear-gradient(135deg, #3182ce, #2c5282);">📥 Load Existing Keys</button>
+            </div>
+            
+            <div id="loadKeysSection" style="display: none; margin-bottom: 20px;">
+                <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+                    <strong>⚠️ Security Note:</strong> Paste your private key here to sign QR codes. Your key is processed locally in your browser and never sent anywhere.
+                </div>
+                <div class="input-group">
+                    <label for="privateKeyInput">Private Key (PEM format):</label>
+                    <textarea id="privateKeyInput" rows="6" placeholder="-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----" style="font-family: 'Courier New', monospace; font-size: 11px;"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="publicKeyInput">Public Key (PEM format):</label>
+                    <textarea id="publicKeyInput" rows="6" placeholder="-----BEGIN PUBLIC KEY-----
+...
+-----END PUBLIC KEY-----" style="font-family: 'Courier New', monospace; font-size: 11px;"></textarea>
+                </div>
+                <button onclick="loadExistingKeys()" style="background: linear-gradient(135deg, #667eea, #764ba2);">✅ Load These Keys</button>
+                <button onclick="cancelLoadKeys()" style="background: linear-gradient(135deg, #718096, #4a5568); margin-top: 5px;">❌ Cancel</button>
+            </div>
+            
             <button onclick="generateQR()" id="genBtn" disabled>🔐 Generate Signed QR Code</button>
             
             <div class="qr-container">
@@ -254,7 +280,7 @@
             <div class="input-group">
                 <label for="manualPayload">QR Code Data or URL:</label>
                 <textarea id="manualPayload" rows="4" placeholder="Paste QR code data here...
-Example: https://asreptilesllc1-svg.github.io/Anti-Counterfeit/?p=eyJkYXRhIjp7ImlkIjoiUFJPRC0yMDI0LTAwMSIsInRpbWVzdGFtcCI6MTcwMzE4..."></textarea>
+Example: https://verify.yourdomain.com/?p=eyJkYXRhIjp7ImlkIjoiUFJPRC0yMDI0LTAwMSIsInRpbWVzdGFtcCI6MTcwMzE4..."></textarea>
             </div>
             
             <button onclick="verifyManual()">🔍 Verify Signature</button>
@@ -326,7 +352,93 @@ Example: https://asreptilesllc1-svg.github.io/Anti-Counterfeit/?p=eyJkYXRhIjp7Im
             return atob(str);
         }
 
-        // Key Generation
+        // Toggle key options
+        function toggleKeyOptions() {
+            const keyOptions = document.getElementById('keyOptions');
+            keyOptions.style.display = keyOptions.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Show load keys section
+        function showLoadKeys() {
+            document.getElementById('loadKeysSection').style.display = 'block';
+            document.getElementById('keyOptions').style.display = 'none';
+            document.getElementById('keyDisplay').style.display = 'none';
+        }
+
+        // Cancel load keys
+        function cancelLoadKeys() {
+            document.getElementById('loadKeysSection').style.display = 'none';
+            document.getElementById('keyOptions').style.display = 'block';
+            document.getElementById('privateKeyInput').value = '';
+            document.getElementById('publicKeyInput').value = '';
+        }
+
+        // Load existing keys
+        async function loadExistingKeys() {
+            const privateKeyPem = document.getElementById('privateKeyInput').value.trim();
+            const publicKeyPemInput = document.getElementById('publicKeyInput').value.trim();
+
+            if (!privateKeyPem || !publicKeyPemInput) {
+                showResult('generationResult', '❌ Please provide both private and public keys', 'error');
+                return;
+            }
+
+            try {
+                showResult('generationResult', '🔑 Loading your keys...', 'info');
+
+                // Import private key
+                const privateKeyData = privateKeyPem.replace(/-----.*-----/g, '').replace(/\s/g, '');
+                const privateKeyBuffer = Uint8Array.from(atob(privateKeyData), c => c.charCodeAt(0));
+                
+                privateKey = await crypto.subtle.importKey(
+                    'pkcs8',
+                    privateKeyBuffer.buffer,
+                    { name: 'ECDSA', namedCurve: 'P-256' },
+                    false,
+                    ['sign']
+                );
+
+                // Import public key
+                const publicKeyData = publicKeyPemInput.replace(/-----.*-----/g, '').replace(/\s/g, '');
+                const publicKeyBuffer = Uint8Array.from(atob(publicKeyData), c => c.charCodeAt(0));
+                
+                publicKey = await crypto.subtle.importKey(
+                    'spki',
+                    publicKeyBuffer.buffer,
+                    { name: 'ECDSA', namedCurve: 'P-256' },
+                    false,
+                    ['verify']
+                );
+
+                publicKeyPem = publicKeyPemInput;
+
+                // Hide load section, show success
+                document.getElementById('loadKeysSection').style.display = 'none';
+                document.getElementById('genBtn').disabled = false;
+                document.getElementById('toggleBtn').textContent = '🔄 Change Keys';
+
+                showResult('generationResult', '✅ Keys loaded successfully! You can now generate signed QR codes.', 'success');
+
+                // Display loaded keys (optional)
+                document.getElementById('privateKeyDisplay').innerHTML = `
+                    <h4 style="color: #e53e3e; margin: 10px 0;">🔒 Private Key Loaded:</h4>
+                    <div style="background: #fed7d7; padding: 10px; border-radius: 5px; word-break: break-all; max-height: 100px; overflow-y: auto;">${privateKeyPem}</div>
+                `;
+                
+                document.getElementById('publicKeyDisplay').innerHTML = `
+                    <h4 style="color: #38a169; margin: 10px 0;">🌍 Public Key Loaded:</h4>
+                    <div style="background: #c6f6d5; padding: 10px; border-radius: 5px; word-break: break-all; max-height: 100px; overflow-y: auto;">${publicKeyPemInput}</div>
+                `;
+                
+                document.getElementById('keyDisplay').style.display = 'block';
+
+            } catch (error) {
+                console.error('Key loading error:', error);
+                showResult('generationResult', '❌ Failed to load keys. Make sure they are valid PEM format keys.', 'error');
+            }
+        }
+
+        // Key Generation (existing function)
         async function generateKeys() {
             try {
                 showResult('generationResult', '🔑 Generating cryptographic key pair...', 'info');
@@ -439,7 +551,7 @@ Example: https://asreptilesllc1-svg.github.io/Anti-Counterfeit/?p=eyJkYXRhIjp7Im
                 };
 
                 const payloadStr = toB64uStr(new TextEncoder().encode(JSON.stringify(signedPayload)));
-                const qrData = `https://asreptilesllc1-svg.github.io/Anti-Counterfeit/?p=${payloadStr}`;
+                const qrData = `https://asreptilesllc1-svg.github.io/Anti-Counterfeit/verify.html?p=${payloadStr}`;
 
                 // Display QR data
                 const qrContainer = document.getElementById('qrcode');
