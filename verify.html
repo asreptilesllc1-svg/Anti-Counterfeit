@@ -1,442 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Authenticity - Verified PAC</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Orbitron', sans-serif;
-            background: #000000;
-            color: #00ff00;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            width: 100%;
-            max-width: 600px;
-        }
-        .card {
-            background: #0a0a0a;
-            border: 2px solid #00ff00;
-            border-radius: 0;
-            padding: 30px 20px;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
-        }
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo h1 {
-            color: #00ff00;
-            font-size: clamp(24px, 5vw, 36px);
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            text-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
-            margin-bottom: 10px;
-        }
-        .logo p {
-            color: #00ff00;
-            font-size: clamp(12px, 2.5vw, 16px);
-            opacity: 0.8;
-            letter-spacing: 2px;
-        }
-        .shield-icon {
-            width: clamp(60px, 15vw, 100px);
-            height: clamp(60px, 15vw, 100px);
-            margin: 0 auto 20px;
-            background: #00ff00;
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: clamp(30px, 8vw, 50px);
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.5); }
-            50% { box-shadow: 0 0 40px rgba(0, 255, 0, 1); }
-        }
-        .auto-verify-message {
-            background: rgba(0, 255, 0, 0.1);
-            border: 2px dashed #00ff00;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-            color: #00ff00;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .instructions {
-            background: rgba(0, 255, 0, 0.05);
-            border-left: 4px solid #00ff00;
-            padding: 20px;
-            margin-bottom: 25px;
-        }
-        .instructions h3 {
-            color: #00ff00;
-            font-size: clamp(14px, 3vw, 18px);
-            margin-bottom: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .instructions p {
-            color: #00ff00;
-            line-height: 1.8;
-            margin-bottom: 10px;
-            font-size: clamp(12px, 2.5vw, 14px);
-            opacity: 0.9;
-        }
-        .input-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 700;
-            color: #00ff00;
-            font-size: clamp(12px, 2.5vw, 14px);
-            letter-spacing: 1px;
-        }
-        textarea {
-            width: 100%;
-            padding: 15px;
-            background: #000000;
-            border: 2px dashed #00ff00;
-            color: #00ff00;
-            font-size: clamp(11px, 2vw, 14px);
-            font-family: 'Orbitron', monospace;
-            transition: all 0.3s;
-            resize: vertical;
-            min-height: 80px;
-        }
-        textarea:focus {
-            outline: none;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-            border-color: #00ff00;
-        }
-        textarea::placeholder {
-            color: rgba(0, 255, 0, 0.4);
-        }
-        button {
-            background: #00ff00;
-            color: #000000;
-            border: none;
-            padding: 16px 32px;
-            font-size: clamp(14px, 3vw, 18px);
-            font-weight: 900;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-            font-family: 'Orbitron', sans-serif;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-        button:hover {
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
-            transform: scale(1.02);
-        }
-        button:active {
-            transform: scale(0.98);
-        }
-        .result {
-            margin-top: 25px;
-            padding: 25px 20px;
-            display: none;
-            animation: slideIn 0.5s ease-out;
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .result.authentic {
-            background: rgba(0, 255, 0, 0.1);
-            border: 3px solid #00ff00;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
-        }
-        .result.fake {
-            background: rgba(255, 0, 0, 0.1);
-            border: 3px solid #ff0000;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
-        }
-        .result-icon {
-            font-size: clamp(40px, 10vw, 60px);
-            text-align: center;
-            margin-bottom: 15px;
-            animation: bounce 0.5s;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-        .result h3 {
-            text-align: center;
-            font-size: clamp(18px, 4vw, 28px);
-            margin-bottom: 20px;
-            color: #00ff00;
-            font-weight: 900;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-        .result.fake h3 {
-            color: #ff0000;
-        }
-        .result-message {
-            text-align: center;
-            font-weight: 700;
-            margin-bottom: 20px;
-            font-size: clamp(14px, 3vw, 18px);
-            letter-spacing: 1px;
-            line-height: 1.6;
-        }
-        .result-details {
-            background: rgba(0, 255, 0, 0.05);
-            border: 1px solid #00ff00;
-            padding: 15px;
-            margin-top: 15px;
-        }
-        .result-details p {
-            margin: 10px 0;
-            color: #00ff00;
-            font-size: clamp(12px, 2.5vw, 14px);
-            letter-spacing: 1px;
-        }
-        .result-details strong {
-            color: #00ff00;
-            text-transform: uppercase;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #00ff00;
-            font-size: clamp(11px, 2vw, 13px);
-            opacity: 0.7;
-            letter-spacing: 1px;
-        }
-        .footer a {
-            color: #00ff00;
-            text-decoration: none;
-            font-weight: 700;
-        }
-        .footer a:hover {
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
-        }
-        .loader {
-            border: 3px solid rgba(0, 255, 0, 0.2);
-            border-top: 3px solid #00ff00;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-            display: none;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .verified-badge {
-            text-align: center;
-            margin: 20px 0;
-            font-size: clamp(20px, 5vw, 32px);
-            font-weight: 900;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: #00ff00;
-            text-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Verification</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+      background: #f5f5f5;
+    }
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 10px;
+      display: inline-block;
+      font-size: 1.2em;
+    }
+    .authentic {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .invalid {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="logo">
-                <div class="shield-icon">🛡️</div>
-                <h1>VERIFIED PAC</h1>
-                <p>AUTHENTICITY VERIFICATION</p>
-            </div>
+  <h1>Verify Product Authenticity</h1>
+  <div id="status" class="result">Checking...</div>
 
-            <div id="autoVerifyMessage" class="auto-verify-message" style="display: none;">
-                ⚡ VERIFYING PRODUCT ⚡
-            </div>
+  <script>
+    async function verifyProduct() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const statusDiv = document.getElementById("status");
 
-            <div class="instructions" id="instructions">
-                <h3>SCAN & VERIFY:</h3>
-                <p>Scan the QR code on your product. Verification is automatic and instant.</p>
-                <p><strong>BACKUP:</strong> If scanning failed, paste the QR data below.</p>
-            </div>
+      if (!code) {
+        statusDiv.textContent = "No code provided.";
+        statusDiv.className = "result invalid";
+        return;
+      }
 
-            <div class="input-group" id="inputGroup">
-                <label for="qrData">MANUAL INPUT:</label>
-                <textarea id="qrData" placeholder="Paste QR data here if needed..."></textarea>
-            </div>
+      try {
+        // Use absolute path so it works correctly on GitHub Pages
+        const response = await fetch("https://asreptilesllc1-svg.github.io/Anti-Counterfeit/data/validCodes.json");
+        const data = await response.json();
 
-            <button onclick="verifyProduct()" id="verifyBtn">VERIFY NOW</button>
-
-            <div class="loader" id="loader"></div>
-            <div id="result" class="result"></div>
-        </div>
-
-        <div class="footer">
-            <p>POWERED BY CRYPTOGRAPHIC SECURITY</p>
-            <p>QUESTIONS? <a href="mailto:asreptilesllc@gmail.com">CONTACT SUPPORT</a></p>
-        </div>
-    </div>
-
-    <script>
-        const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcw5zGoxD+BGctkGt1/8HHzvDvTqV
-ud3yQmWjl1RsKJVdGkKWEzzg6lxhAcSwZ3ATfQrtqKesYyor0B1Iq0aiEw==
------END PUBLIC KEY-----`;
-
-        let publicKey = null;
-
-        async function initializeVerifier() {
-            try {
-                const keyData = PUBLIC_KEY_PEM.replace(/-----.*-----/g, '').replace(/\s/g, '');
-                const keyBuffer = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
-                publicKey = await crypto.subtle.importKey('spki', keyBuffer.buffer, 
-                    { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-            } catch (error) {
-                console.error('Failed to load verification key:', error);
-            }
+        if (data[code]) {
+          const product = data[code];
+          statusDiv.innerHTML = `
+            ✅ <strong>Authentic Product Verified</strong><br><br>
+            <b>Item:</b> ${product.name}<br>
+            <b>Batch:</b> ${product.batch}<br>
+            <b>Brand:</b> ${product.brand}<br>
+            <br>Scan recorded successfully.
+          `;
+          statusDiv.className = "result authentic";
+        } else {
+          statusDiv.innerHTML = `
+            ❌ <strong>Product Not Verified</strong><br><br>
+            This code is not in our authenticity database.<br>
+            Please contact the seller for confirmation.
+          `;
+          statusDiv.className = "result invalid";
         }
+      } catch (error) {
+        statusDiv.textContent = "Error verifying code. Please try again later.";
+        statusDiv.className = "result invalid";
+      }
+    }
 
-        function fromB64uStr(str) {
-            if (!str) return null;
-            str = str.replace(/-/g, '+').replace(/_/g, '/');
-            while (str.length % 4) str += '=';
-            return atob(str);
-        }
-
-        function base64ToArrayBuffer(base64) {
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        async function verifyProduct(autoVerify = false) {
-            const qrData = document.getElementById('qrData').value.trim();
-            const resultDiv = document.getElementById('result');
-            const loader = document.getElementById('loader');
-
-            resultDiv.style.display = 'none';
-            resultDiv.className = 'result';
-
-            if (!qrData && !autoVerify) {
-                showResult('fake', 'NO DATA', {});
-                return;
-            }
-
-            loader.style.display = 'block';
-
-            try {
-                let payloadStr;
-                if (qrData.includes('?p=')) {
-                    payloadStr = qrData.split('?p=')[1].split('&')[0];
-                } else {
-                    payloadStr = qrData;
-                }
-
-                const payloadJson = fromB64uStr(payloadStr);
-                const payload = JSON.parse(payloadJson);
-
-                if (!payload.data || !payload.sig) {
-                    throw new Error('Invalid QR code format');
-                }
-
-                const dataToVerify = JSON.stringify(payload.data, Object.keys(payload.data).sort());
-                const dataBuffer = new TextEncoder().encode(dataToVerify);
-                
-                let signatureB64 = payload.sig.replace(/-/g, '+').replace(/_/g, '/');
-                while (signatureB64.length % 4) signatureB64 += '=';
-                const signature = base64ToArrayBuffer(signatureB64);
-
-                const isValid = await crypto.subtle.verify(
-                    { name: 'ECDSA', hash: 'SHA-256' }, publicKey, signature, dataBuffer);
-
-                loader.style.display = 'none';
-
-                if (isValid) {
-                    showResult('authentic', 'AUTHENTIC', payload.data);
-                } else {
-                    showResult('fake', 'COUNTERFEIT', {});
-                }
-            } catch (error) {
-                loader.style.display = 'none';
-                console.error('Verification error:', error);
-                showResult('fake', 'INVALID', {});
-            }
-        }
-
-        function showResult(type, title, data) {
-            const resultDiv = document.getElementById('result');
-            
-            if (type === 'authentic') {
-                const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'UNKNOWN';
-                resultDiv.innerHTML = `
-                    <div class="result-icon">✅</div>
-                    <h3>YOU JUST GOT YOURSELF AN AUTHENTIC PIECE PARTNER</h3>
-                    <div class="verified-badge">VERIFIED PAC</div>
-                    <div class="result-details">
-                        <p><strong>PRODUCT ID:</strong> ${data.id || 'N/A'}</p>
-                        ${data.name ? `<p><strong>PRODUCT:</strong> ${data.name}</p>` : ''}
-                        ${data.batch ? `<p><strong>BATCH:</strong> ${data.batch}</p>` : ''}
-                        <p><strong>VERIFIED:</strong> ${timestamp}</p>
-                    </div>
-                    <p class="result-message" style="margin-top: 15px;">
-                        THIS PRODUCT IS CRYPTOGRAPHICALLY AUTHENTICATED AND TAMPER-PROOF.
-                    </p>
-                `;
-                resultDiv.className = 'result authentic';
-            } else {
-                resultDiv.innerHTML = `
-                    <div class="result-icon">⚠️</div>
-                    <h3>COUNTERFEIT WARNING</h3>
-                    <p class="result-message" style="color: #ff0000;">
-                        THIS PRODUCT COULD NOT BE VERIFIED.
-                    </p>
-                    <div class="result-details" style="border-color: #ff0000; background: rgba(255, 0, 0, 0.05);">
-                        <p style="color: #ff0000;"><strong>POSSIBLE REASONS:</strong></p>
-                        <p style="color: #ff0000;">• Invalid or damaged QR code</p>
-                        <p style="color: #ff0000;">• Counterfeit product</p>
-                        <p style="color: #ff0000;">• Tampered authentication</p>
-                    </div>
-                    <p class="result-message" style="margin-top: 15px; color: #ff0000;">
-                        CONTACT SUPPORT IF YOU BELIEVE THIS IS AN ERROR.
-                    </p>
-                `;
-                resultDiv.className = 'result fake';
-            }
-            resultDiv.style.display = 'block';
-        }
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            await initializeVerifier();
-            const urlParams = new URLSearchParams(window.location.search);
-            const payload = urlParams.get('p');
-            
-            if (payload) {
-                document.getElementById('autoVerifyMessage').style.display = 'block';
-                document.getElementById('instructions').style.display = 'none';
-                document.getElementById('inputGroup').style.display = 'none';
-                document.getElementById('verifyBtn').style.display = 'none';
-                document.getElementById('qrData').value = window.location.href;
-                setTimeout(() => {
-                    document.getElementById('autoVerifyMessage').style.display = 'none';
-                    verifyProduct(true);
-                }, 1000);
-            }
-        });
-    </script>
+    verifyProduct();
+  </script>
 </body>
 </html>
