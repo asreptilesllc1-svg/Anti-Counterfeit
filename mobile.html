@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR Product Verifier</title>
+
+  <!-- Simple mobile styling -->
+  <style>
+    :root {
+      color-scheme: light dark;
+      --accent: #00b67a;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 1.5rem;
+      background: var(--bg, #f5f5f5);
+      min-height: 100vh;
+      margin: 0;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    input {
+      width: 80%;
+      max-width: 300px;
+      padding: 0.7rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 1rem;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.7rem 1.2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.3rem;
+    }
+    button:disabled {
+      opacity: 0.5;
+    }
+    #result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 10px;
+      max-width: 320px;
+      text-align: center;
+      word-wrap: break-word;
+    }
+    .authentic {
+      background: #d4edda;
+      color: #155724;
+    }
+    .invalid {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    video {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 10px;
+      margin-top: 1rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>QR Product Verifier</h1>
+  <input id="codeInput" type="text" placeholder="Enter or scan code" />
+  <div>
+    <button id="verifyBtn">Verify</button>
+    <button id="scanBtn">Scan QR</button>
+  </div>
+
+  <video id="preview"></video>
+  <div id="result"></div>
+
+  <!-- QR scanner library -->
+  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+  <script>
+    const resultDiv = document.getElementById("result");
+    const codeInput = document.getElementById("codeInput");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const scanBtn = document.getElementById("scanBtn");
+    const videoElem = document.getElementById("preview");
+    let scanner;
+
+    async function verify(code) {
+      resultDiv.textContent = "Checking...";
+      resultDiv.className = "";
+      try {
+        const res = await fetch("data/validCodes.json");
+        const data = await res.json();
+        if (data[code]) {
+          const p = data[code];
+          resultDiv.innerHTML = `
+            ✅ <strong>Authentic Product Verified</strong><br>
+            <b>Item:</b> ${p.name}<br>
+            <b>Batch:</b> ${p.batch}<br>
+            <b>Brand:</b> ${p.brand}
+          `;
+          resultDiv.className = "authentic";
+        } else {
+          resultDiv.innerHTML = "❌ Code not found or invalid.";
+          resultDiv.className = "invalid";
+        }
+      } catch (e) {
+        resultDiv.textContent = "Error verifying product.";
+        resultDiv.className = "invalid";
+      }
+    }
+
+    verifyBtn.addEventListener("click", () => {
+      const code = codeInput.value.trim();
+      if (code) verify(code);
+    });
+
+    scanBtn.addEventListener("click", async () => {
+      if (scanner) {
+        scanner.stop().then(() => {
+          scanner = null;
+          scanBtn.textContent = "Scan QR";
+          videoElem.style.display = "none";
+        });
+        return;
+      }
+      videoElem.style.display = "block";
+      scanner = new Html5Qrcode("preview");
+      scanBtn.textContent = "Stop";
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          scanner.stop();
+          scanner = null;
+          scanBtn.textContent = "Scan QR";
+          videoElem.style.display = "none";
+          codeInput.value = decodedText.split("code=")[1] || decodedText;
+          verifyBtn.click();
+        },
+        (err) => {}
+      );
+    });
+
+    // auto-verify if ?code= present
+    const params = new URLSearchParams(window.location.search);
+    const initialCode = params.get("code");
+    if (initialCode) {
+      codeInput.value = initialCode;
+      verifyBtn.click();
+    }
+  </script>
+</body>
+</html>
