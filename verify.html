@@ -45,8 +45,7 @@
       }
 
       try {
-        // Use absolute path so it works correctly on GitHub Pages
-        const response = await fetch("https://asreptilesllc1-svg.github.io/Anti-Counterfeit/data/validCodes.json");
+        const response = await fetch("./data/validCodes.json");
         const data = await response.json();
 
         if (data[code]) {
