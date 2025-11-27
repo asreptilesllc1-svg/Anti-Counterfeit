@@ -10,3 +10,14 @@ private.pem
 new_private.pem
 .env
 Key/
+
+# ignore local private keys and env
+private.pem
+new_private.pem
+.env
+Key/
+
+# ignore private keys
+private.pem
+new_private.pem.env
+Key/
