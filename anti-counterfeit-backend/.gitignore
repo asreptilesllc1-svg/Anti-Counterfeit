@@ -5,3 +5,8 @@ new_private.pem
 private.pem
 .env
 Key/
+
+private.pem
+new_private.pem
+.env
+Key/
