@@ -1,99 +1,76 @@
 import express from "express";
 import cors from "cors";
-import bodyParser from "body-parser";
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import jwt from "jsonwebtoken";
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+// 🔐 Keys come from Render / env vars
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const PUBLIC_KEY = process.env.PUBLIC_KEY;
 
-// Load keys (must match the key you used in generate-token.js)
-const privateKeyPem = fs.readFileSync(path.join(__dirname, "private.pem"), "utf8");
-const publicKeyPem = fs.readFileSync(path.join(__dirname, "public.pem"), "utf8");
-
-// Helper: base64url decode JSON token
-function decodeSignedToken(signedToken) {
-  const json = Buffer.from(signedToken, "base64url").toString("utf8");
-  return JSON.parse(json);
+if (!PRIVATE_KEY || !PUBLIC_KEY) {
+  console.error("❌ PRIVATE_KEY or PUBLIC_KEY missing in environment variables");
 }
 
-// Root health check
+// Simple health check
 app.get("/", (req, res) => {
-  res.send("Anti-counterfeit backend is running");
+  res.json({ status: "ok", message: "Anti-counterfeit backend running" });
 });
 
-// Sign endpoint (optional, for future use)
+// Optional: SIGN endpoint (can sign arbitrary payloads)
 app.post("/sign", (req, res) => {
-  const clientData = req.body?.data || req.body || {};
+  const payload = req.body && Object.keys(req.body).length
+    ? req.body
+    : { id: "TEST-DEFAULT", name: "Default Product", timestamp: Date.now() };
 
-  const data = {
-    ...clientData,
-    timestamp: Date.now(),
-  };
+  try {
+    const signedToken = jwt.sign(
+      { data: payload },
+      PRIVATE_KEY,
+      { algorithm: "RS256" }
+    );
 
-  const payloadJson = JSON.stringify(data);
-  const signatureBase64 = crypto
-    .sign("sha256", Buffer.from(payloadJson), privateKeyPem)
-    .toString("base64");
-
-  const tokenObject = { data, sig: signatureBase64 };
-  const tokenJson = JSON.stringify(tokenObject);
-  const signedToken = Buffer.from(tokenJson).toString("base64url");
-
-  res.json({
-    payload: data,
-    signature: signatureBase64,
-    signedToken,
-  });
+    res.json({ signedToken });
+  } catch (error) {
+    console.error("Sign error:", error);
+    res.status(400).json({ error: "Signing failed" });
+  }
 });
 
-// ✅ Verify endpoint, used by verify.html
+// ✅ VERIFY endpoint used by verify.html
 app.post("/verify-token", (req, res) => {
   const { signedToken } = req.body || {};
+
   if (!signedToken) {
-    return res.status(400).json({ valid: false, error: "signedToken missing" });
+    return res.status(400).json({
+      valid: false,
+      error: "signedToken missing",
+    });
   }
 
   try {
-    const token = decodeSignedToken(signedToken); // { data, sig }
-    const { data, sig } = token;
-
-    if (!data || !sig) {
-      return res
-        .status(400)
-        .json({ valid: false, error: "Token missing data or sig" });
-    }
-
-    const payloadJson = JSON.stringify(data);
-    const signatureBuf = Buffer.from(sig, "base64");
-
-    const isValid = crypto.verify(
-      "sha256",
-      Buffer.from(payloadJson),
-      publicKeyPem,
-      signatureBuf
-    );
-
-    return res.json({
-      valid: isValid,
-      payload: isValid ? data : null,
+    const decoded = jwt.verify(signedToken, PUBLIC_KEY, {
+      algorithms: ["RS256"],
     });
-  } catch (err) {
-    console.error("Verify error:", err);
-    return res
-      .status(400)
-      .json({ valid: false, error: "Invalid token format or signature" });
+
+    // decoded looks like { data: { ...payload... }, iat, exp? }
+    res.json({
+      valid: true,
+      payload: decoded.data,
+    });
+  } catch (error) {
+    console.error("Verify error:", error);
+    res.status(400).json({
+      valid: false,
+      error: "Invalid token",
+    });
   }
 });
 
+const PORT = process.env.PORT || 10000;
+
 app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+  console.log("🚀 Backend running on port " + PORT);
 });

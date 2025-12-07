@@ -12,40 +12,38 @@
 
 <script>
 (async () => {
-  // Read ?p=...
   const params = new URLSearchParams(window.location.search);
   const signedToken = params.get("p");
 
-  if(!signedToken){
-    document.getElementById("status").innerText = 
+  if (!signedToken) {
+    document.getElementById("status").innerText =
       "No signed token found in link. Please scan a valid QR code.";
     return;
   }
 
   try {
-    // CALL BACKEND VERIFY
     const res = await fetch(
       "https://anti-counterfeit-backend-new.onrender.com/verify-token",
       {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ signedToken })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedToken }),
       }
     );
 
     const data = await res.json();
 
-    if(data.valid){
-      document.getElementById("status").innerHTML = 
+    if (data.valid) {
+      document.getElementById("status").innerHTML =
         "<h2 style='color:green'>✔ Verified Authentic</h2>" +
         "<pre>" + JSON.stringify(data.payload, null, 2) + "</pre>";
     } else {
-      document.getElementById("status").innerHTML = 
-        "<h2 style='color:red'>✖ Verification Failed</h2>";
+      document.getElementById("status").innerHTML =
+        "<h2 style='color:red'>✖ Verification Failed</h2>" +
+        "<pre>" + (data.error || "Unknown error") + "</pre>";
     }
-  }
-  catch(err){
-    document.getElementById("status").innerText = 
+  } catch (err) {
+    document.getElementById("status").innerText =
       "Verification error: " + err;
   }
 })();
