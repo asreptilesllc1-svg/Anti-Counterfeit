@@ -1,212 +1,126 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Verify — Auto</title>
+<meta charset="UTF-8">
+<title>QR Code Verification</title>
 <style>
-  :root{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:820px;margin:18px auto;padding:12px}
-  body{margin:0}
-  header{display:flex;align-items:center;gap:12px}
-  video{width:100%;max-height:60vh;background:#000;border-radius:8px;display:block}
-  .controls{display:flex;gap:8px;margin:8px 0}
-  .hidden{display:none !important}
-  .result{margin-top:12px;padding:12px;border-radius:8px}
-  .ok{background:#e6ffed;color:#03522f}
-  .err{background:#ffecec;color:#6b0b0b}
-  .loading{background:#fff8e6;color:#8a5f00}
-  pre{background:#0f1720;color:#dbeafe;padding:12px;border-radius:6px;overflow:auto}
-  #spinner{display:inline-block;width:18px;height:18px;border-radius:50%;border:3px solid rgba(0,0,0,0.08);border-top-color:#0366d6;animation:spin .8s linear infinite;vertical-align:middle}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  footer{margin-top:18px;font-size:13px;color:#666}
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background: #f5f5f5;
+    }
+    #resultBox {
+        margin-top: 20px;
+        padding: 20px;
+        border-radius: 10px;
+        font-size: 20px;
+        font-weight: bold;
+        display: none;
+    }
+    #resultBox.good {
+        background: #c8f7c5;
+        color: #2e7d32;
+    }
+    #resultBox.bad {
+        background: #ffcdd2;
+        color: #c62828;
+    }
+    video {
+        width: 100%;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1 style="margin:0;font-size:1.25rem">Verify token</h1>
-    <div style="margin-left:auto;font-size:0.9rem;color:#666">Auto-submit on scan</div>
-  </header>
 
-  <p id="instructions">Start camera then point at QR on a monitor (or upload image). The page will verify automatically.</p>
+<h2>Product Authentication</h2>
+<p>Scan the QR or allow automatic verification.</p>
 
-  <!-- Replace with your backend URL -->
-  <script>const BACKEND_URL = "https://anti-counterfeit-backend-new.onrender.com"; const VERIFY_ENDPOINT = `${BACKEND_URL}/verify`;</script>
+<button id="startBtn">Start Camera Scan</button>
+<video id="preview" autoplay></video>
 
-  <div id="scanner-ui">
-    <video id="video" muted playsinline></video>
-    <div class="controls">
-      <button id="startBtn">Start Camera</button>
-      <button id="stopBtn" disabled>Stop Camera</button>
-      <input id="fileInput" type="file" accept="image/*">
-    </div>
-  </div>
+<div id="resultBox"></div>
 
-  <!-- Hidden textarea: token is not displayed, used only for sending -->
-  <textarea id="scannedToken" class="hidden" aria-hidden="true"></textarea>
+<!-- Manual input (hidden but can be used for testing) -->
+<input type="text" id="manualInput" style="width:100%; display:none;">
 
-  <div id="resultArea" class="hidden">
-    <div id="statusBox" class="result loading"><span id="spinner"></span> <span id="statusText">Waiting...</span></div>
-    <div id="resultJson" style="margin-top:10px"></div>
-    <div style="margin-top:10px"><button id="resetBtn">Scan another</button></div>
-  </div>
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 
-  <div id="failMsg" class="hidden result err"></div>
-
-  <footer>
-    Tip: for fastest UX make the QR fill a decent portion of the screen when testing.
-  </footer>
-</main>
-
-<script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.legacy.min.js"></script>
 <script>
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const fileInput = document.getElementById('fileInput');
-  const video = document.getElementById('video');
-  const scannedTokenEl = document.getElementById('scannedToken');
-  const resultArea = document.getElementById('resultArea');
-  const statusBox = document.getElementById('statusBox');
-  const statusText = document.getElementById('statusText');
-  const resultJson = document.getElementById('resultJson');
-  const resetBtn = document.getElementById('resetBtn');
-  const failMsg = document.getElementById('failMsg');
-  let qrScanner = null;
-  let inflight = false;
+const backendURL = "https://anti-counterfeit-backend-new.onrender.com/verify";
 
-  // Utility: show status
-  function showStatus(text, cls='loading'){
-    statusBox.className = `result ${cls}`;
-    statusText.textContent = text;
-    resultArea.classList.remove('hidden');
-  }
-  function showFailure(text){
-    failMsg.textContent = text;
-    failMsg.classList.remove('hidden');
-  }
-  function clearFailure(){ failMsg.classList.add('hidden'); failMsg.textContent=''; }
+function showResult(success, message) {
+    const box = document.getElementById("resultBox");
+    box.style.display = "block";
+    box.className = success ? "good" : "bad";
+    box.textContent = message;
+}
 
-  // Auto-submit given token string (hides token)
-  async function autoVerify(token){
-    if(inflight) return;
-    inflight = true;
-    clearFailure();
-    showStatus('Verifying — sending to server...', 'loading');
-    resultJson.innerHTML = '';
-
-    // Construct body — default expects { signedToken: "..."}
-    const body = { signedToken: token };
-
+async function verifyToken(token) {
     try {
-      const resp = await fetch(VERIFY_ENDPOINT, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(body),
-      });
-      if(!resp.ok){
-        const txt = await resp.text();
-        showFailure(`Server returned ${resp.status}: ${txt}`);
-        showStatus('Server error', 'err');
-        inflight = false;
-        return;
-      }
-      const json = await resp.json();
-      // Display result (no raw token)
-      if(json.valid === true){
-        showStatus('✔ Valid token', 'ok');
-      } else if(json.valid === false){
-        showStatus('✖ Invalid token', 'err');
-      } else {
-        showStatus('Response received', 'ok');
-      }
-      resultJson.innerHTML = `<pre>${escapeHtml(JSON.stringify(json, null, 2))}</pre>`;
-    } catch(e){
-      showFailure('Network error: ' + e.message);
-      showStatus('Network error', 'err');
-    } finally {
-      inflight = false;
+        const res = await fetch(backendURL + "?signedToken=" + encodeURIComponent(token));
+        const data = await res.json();
+
+        if (res.ok) {
+            showResult(true, "✔ Product Verified\n\n" + JSON.stringify(data.data, null, 2));
+        } else {
+            showResult(false, "✖ Verification Failed: " + (data.error || "Invalid token"));
+        }
+    } catch (error) {
+        showResult(false, "Server Error: " + error);
     }
-  }
+}
 
-  // Escape HTML helper
-  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* --- AUTO VERIFY ON PAGE LOAD (from QR scan redirect) --- */
+(function autoVerifyFromURL() {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get("signedToken"); // <-- correct parameter
 
-  // Start / stop camera
-  startBtn.addEventListener('click', async () => {
-    startBtn.disabled = true;
-    clearFailure();
-    try {
-      qrScanner = new QrScanner(video, result => {
-        // When we get a code, store it but DO NOT show it; auto-verify
-        scannedTokenEl.value = result;
-        // Stop camera immediately to avoid duplicate submits
-        if(qrScanner) { qrScanner.stop(); qrScanner.destroy(); qrScanner = null; }
-        stopBtn.disabled = true;
-        startBtn.disabled = false;
-        autoVerify(result);
-      }, { highlightScanRegion: true });
-      await qrScanner.start();
-      stopBtn.disabled = false;
-      showStatus('Camera started — point at QR', 'loading');
-    } catch(err){
-      startBtn.disabled = false;
-      showFailure('Camera start failed: ' + (err?.message || err));
+    if (token) {
+        verifyToken(token);  // auto verify immediately
     }
-  });
+})();
 
-  stopBtn.addEventListener('click', () => {
-    if(qrScanner) { qrScanner.stop(); qrScanner.destroy(); qrScanner = null; }
-    video.srcObject = null;
-    stopBtn.disabled = true;
-    startBtn.disabled = false;
-    showStatus('Camera stopped', 'loading');
-  });
+/* --- CAMERA SCANNING --- */
+const startBtn = document.getElementById("startBtn");
+const video = document.getElementById("preview");
 
-  // File upload -> decode -> auto verify
-  fileInput.addEventListener('change', async (e) => {
-    clearFailure();
-    const f = e.target.files?.[0];
-    if(!f) return;
-    try {
-      showStatus('Decoding image...', 'loading');
-      const result = await QrScanner.scanImage(f, { returnDetailedScanResult: false });
-      scannedTokenEl.value = result;
-      autoVerify(result);
-    } catch(err){
-      showFailure('No QR found in image');
+startBtn.onclick = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
+    video.srcObject = stream;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    function tick() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imgData.data, canvas.width, canvas.height);
+
+            if (code) {
+                const tokenURL = new URL(code.data);
+                const token = tokenURL.searchParams.get("signedToken");
+
+                if (token) {
+                    verifyToken(token);
+                    return;
+                } else {
+                    showResult(false, "QR scanned but no signedToken found.");
+                }
+            }
+        }
+        requestAnimationFrame(tick);
     }
-  });
 
-  // Reset to allow scanning again
-  resetBtn.addEventListener('click', () => {
-    resultArea.classList.add('hidden');
-    resultJson.innerHTML = '';
-    scannedTokenEl.value = '';
-    clearFailure();
-  });
-
-  // If URL has ?signedToken=... then auto-submit immediately (URL-wrapped QR flow)
-  (function checkUrlParam(){
-    try {
-      const urlParams = new URLSearchParams(location.search);
-      const token = urlParams.get('signedToken') || urlParams.get('token') || '';
-      if(token){
-        // hide scanner UI and auto-verify
-        document.getElementById('scanner-ui').classList.add('hidden');
-        scannedTokenEl.value = token;
-        autoVerify(token);
-      }
-    } catch(e){ /* ignore */ }
-  })();
-
-  // small safety: intercept manual paste (if user pastes token into URL or page)
-  window.addEventListener('paste', (ev) => {
-    const txt = (ev.clipboardData || window.clipboardData).getData('text');
-    if(txt && txt.length>10){
-      scannedTokenEl.value = txt.trim();
-      autoVerify(scannedTokenEl.value);
-    }
-  });
+    tick();
+};
 </script>
+
 </body>
 </html>
+
