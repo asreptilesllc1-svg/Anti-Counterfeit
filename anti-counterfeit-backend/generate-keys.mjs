@@ -1,5 +1,4 @@
-// generate-keys.mjs
-import { writeFileSync } from "fs";
+﻿import { writeFileSync } from "fs";
 import crypto from "crypto";
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
@@ -8,7 +7,6 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
   privateKeyEncoding: { type: "pkcs8", format: "pem" },
 });
 
-writeFileSync("new_private.pem", privateKey);
-writeFileSync("new_public.pem", publicKey);
-
-console.log("Wrote new_private.pem and new_public.pem");
+writeFileSync("private.pem", privateKey);
+writeFileSync("public.pem", publicKey);
+console.log(" Generated new private.pem and public.pem");

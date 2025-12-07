@@ -1,212 +1,105 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Verify — Auto</title>
-<style>
-  :root{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:820px;margin:18px auto;padding:12px}
-  body{margin:0}
-  header{display:flex;align-items:center;gap:12px}
-  video{width:100%;max-height:60vh;background:#000;border-radius:8px;display:block}
-  .controls{display:flex;gap:8px;margin:8px 0}
-  .hidden{display:none !important}
-  .result{margin-top:12px;padding:12px;border-radius:8px}
-  .ok{background:#e6ffed;color:#03522f}
-  .err{background:#ffecec;color:#6b0b0b}
-  .loading{background:#fff8e6;color:#8a5f00}
-  pre{background:#0f1720;color:#dbeafe;padding:12px;border-radius:6px;overflow:auto}
-  #spinner{display:inline-block;width:18px;height:18px;border-radius:50%;border:3px solid rgba(0,0,0,0.08);border-top-color:#0366d6;animation:spin .8s linear infinite;vertical-align:middle}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  footer{margin-top:18px;font-size:13px;color:#666}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Product</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+    #result { margin-top: 20px; font-size: 1.5rem; font-weight: bold; }
+    #video { width: 90%; max-width: 450px; margin-top: 20px; }
+    #loading { margin-top: 15px; font-size: 1.2rem; }
+    .verified { color: green; }
+    .not-verified { color: red; }
+  </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1 style="margin:0;font-size:1.25rem">Verify token</h1>
-    <div style="margin-left:auto;font-size:0.9rem;color:#666">Auto-submit on scan</div>
-  </header>
 
-  <p id="instructions">Start camera then point at QR on a monitor (or upload image). The page will verify automatically.</p>
+<h2>Product Verification</h2>
 
-  <!-- Replace with your backend URL -->
-  <script>const BACKEND_URL = "https://anti-counterfeit-backend-new.onrender.com"; const VERIFY_ENDPOINT = `${BACKEND_URL}/verify`;</script>
+<p id="loading">Initializing camera...</p>
+<video id="video" autoplay></video>
 
-  <div id="scanner-ui">
-    <video id="video" muted playsinline></video>
-    <div class="controls">
-      <button id="startBtn">Start Camera</button>
-      <button id="stopBtn" disabled>Stop Camera</button>
-      <input id="fileInput" type="file" accept="image/*">
-    </div>
-  </div>
+<div id="result"></div>
 
-  <!-- Hidden textarea: token is not displayed, used only for sending -->
-  <textarea id="scannedToken" class="hidden" aria-hidden="true"></textarea>
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 
-  <div id="resultArea" class="hidden">
-    <div id="statusBox" class="result loading"><span id="spinner"></span> <span id="statusText">Waiting...</span></div>
-    <div id="resultJson" style="margin-top:10px"></div>
-    <div style="margin-top:10px"><button id="resetBtn">Scan another</button></div>
-  </div>
-
-  <div id="failMsg" class="hidden result err"></div>
-
-  <footer>
-    Tip: for fastest UX make the QR fill a decent portion of the screen when testing.
-  </footer>
-</main>
-
-<script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.legacy.min.js"></script>
 <script>
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const fileInput = document.getElementById('fileInput');
+async function startScanner() {
   const video = document.getElementById('video');
-  const scannedTokenEl = document.getElementById('scannedToken');
-  const resultArea = document.getElementById('resultArea');
-  const statusBox = document.getElementById('statusBox');
-  const statusText = document.getElementById('statusText');
-  const resultJson = document.getElementById('resultJson');
-  const resetBtn = document.getElementById('resetBtn');
-  const failMsg = document.getElementById('failMsg');
-  let qrScanner = null;
-  let inflight = false;
+  const loading = document.getElementById('loading');
 
-  // Utility: show status
-  function showStatus(text, cls='loading'){
-    statusBox.className = `result ${cls}`;
-    statusText.textContent = text;
-    resultArea.classList.remove('hidden');
-  }
-  function showFailure(text){
-    failMsg.textContent = text;
-    failMsg.classList.remove('hidden');
-  }
-  function clearFailure(){ failMsg.classList.add('hidden'); failMsg.textContent=''; }
-
-  // Auto-submit given token string (hides token)
-  async function autoVerify(token){
-    if(inflight) return;
-    inflight = true;
-    clearFailure();
-    showStatus('Verifying — sending to server...', 'loading');
-    resultJson.innerHTML = '';
-
-    // Construct body — default expects { signedToken: "..."}
-    const body = { signedToken: token };
-
-    try {
-      const resp = await fetch(VERIFY_ENDPOINT, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(body),
-      });
-      if(!resp.ok){
-        const txt = await resp.text();
-        showFailure(`Server returned ${resp.status}: ${txt}`);
-        showStatus('Server error', 'err');
-        inflight = false;
-        return;
-      }
-      const json = await resp.json();
-      // Display result (no raw token)
-      if(json.valid === true){
-        showStatus('✔ Valid token', 'ok');
-      } else if(json.valid === false){
-        showStatus('✖ Invalid token', 'err');
-      } else {
-        showStatus('Response received', 'ok');
-      }
-      resultJson.innerHTML = `<pre>${escapeHtml(JSON.stringify(json, null, 2))}</pre>`;
-    } catch(e){
-      showFailure('Network error: ' + e.message);
-      showStatus('Network error', 'err');
-    } finally {
-      inflight = false;
-    }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = stream;
+    loading.textContent = "Point camera at QR code...";
+  } catch (err) {
+    loading.textContent = "Camera access denied or unavailable.";
+    return;
   }
 
-  // Escape HTML helper
-  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
 
-  // Start / stop camera
-  startBtn.addEventListener('click', async () => {
-    startBtn.disabled = true;
-    clearFailure();
-    try {
-      qrScanner = new QrScanner(video, result => {
-        // When we get a code, store it but DO NOT show it; auto-verify
-        scannedTokenEl.value = result;
-        // Stop camera immediately to avoid duplicate submits
-        if(qrScanner) { qrScanner.stop(); qrScanner.destroy(); qrScanner = null; }
-        stopBtn.disabled = true;
-        startBtn.disabled = false;
-        autoVerify(result);
-      }, { highlightScanRegion: true });
-      await qrScanner.start();
-      stopBtn.disabled = false;
-      showStatus('Camera started — point at QR', 'loading');
-    } catch(err){
-      startBtn.disabled = false;
-      showFailure('Camera start failed: ' + (err?.message || err));
-    }
-  });
+  function scanFrame() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, canvas.width, canvas.height);
 
-  stopBtn.addEventListener('click', () => {
-    if(qrScanner) { qrScanner.stop(); qrScanner.destroy(); qrScanner = null; }
-    video.srcObject = null;
-    stopBtn.disabled = true;
-    startBtn.disabled = false;
-    showStatus('Camera stopped', 'loading');
-  });
-
-  // File upload -> decode -> auto verify
-  fileInput.addEventListener('change', async (e) => {
-    clearFailure();
-    const f = e.target.files?.[0];
-    if(!f) return;
-    try {
-      showStatus('Decoding image...', 'loading');
-      const result = await QrScanner.scanImage(f, { returnDetailedScanResult: false });
-      scannedTokenEl.value = result;
-      autoVerify(result);
-    } catch(err){
-      showFailure('No QR found in image');
-    }
-  });
-
-  // Reset to allow scanning again
-  resetBtn.addEventListener('click', () => {
-    resultArea.classList.add('hidden');
-    resultJson.innerHTML = '';
-    scannedTokenEl.value = '';
-    clearFailure();
-  });
-
-  // If URL has ?signedToken=... then auto-submit immediately (URL-wrapped QR flow)
-  (function checkUrlParam(){
-    try {
-      const urlParams = new URLSearchParams(location.search);
-      const token = urlParams.get('signedToken') || urlParams.get('token') || '';
-      if(token){
-        // hide scanner UI and auto-verify
-        document.getElementById('scanner-ui').classList.add('hidden');
-        scannedTokenEl.value = token;
-        autoVerify(token);
+      if (qr) {
+        loading.textContent = "QR detected, verifying...";
+        verifyToken(qr.data);
+        return; // Stop scanning
       }
-    } catch(e){ /* ignore */ }
-  })();
-
-  // small safety: intercept manual paste (if user pastes token into URL or page)
-  window.addEventListener('paste', (ev) => {
-    const txt = (ev.clipboardData || window.clipboardData).getData('text');
-    if(txt && txt.length>10){
-      scannedTokenEl.value = txt.trim();
-      autoVerify(scannedTokenEl.value);
     }
-  });
+    requestAnimationFrame(scanFrame);
+  }
+
+  scanFrame();
+}
+
+async function verifyToken(rawData) {
+  const resultDiv = document.getElementById("result");
+
+  try {
+    const url = new URL(rawData);
+    const token = url.searchParams.get("p");
+
+    if (!token) {
+      resultDiv.innerHTML = `<span class="not-verified">No signed token found.</span>`;
+      return;
+    }
+
+    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signedToken: token })
+    });
+
+    const data = await res.json();
+
+    if (data.valid) {
+      resultDiv.innerHTML = `<span class="verified">✔ VERIFIED</span>`;
+    } else {
+      resultDiv.innerHTML = `<span class="not-verified">✘ NOT VERIFIED</span>`;
+    }
+
+  } catch (err) {
+    resultDiv.innerHTML = `<span class="not-verified">Server Error</span>`;
+  }
+}
+
+// 👇 Support verifying from URL: verify.html?p=TOKEN
+const params = new URLSearchParams(window.location.search);
+if (params.has("p")) {
+  verifyToken(window.location.href);
+} else {
+  startScanner();
+}
 </script>
+
 </body>
 </html>
