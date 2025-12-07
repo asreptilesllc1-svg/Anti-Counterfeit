@@ -1,126 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>QR Code Verification</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
-        background: #f5f5f5;
-    }
-    #resultBox {
-        margin-top: 20px;
-        padding: 20px;
-        border-radius: 10px;
-        font-size: 20px;
-        font-weight: bold;
-        display: none;
-    }
-    #resultBox.good {
-        background: #c8f7c5;
-        color: #2e7d32;
-    }
-    #resultBox.bad {
-        background: #ffcdd2;
-        color: #c62828;
-    }
-    video {
-        width: 100%;
-        border-radius: 10px;
-        margin-top: 20px;
-    }
-</style>
+  <meta charset="UTF-8">
+  <title>Verify Product</title>
 </head>
 <body>
 
-<h2>Product Authentication</h2>
-<p>Scan the QR or allow automatic verification.</p>
+<h2>Product Verification</h2>
 
-<button id="startBtn">Start Camera Scan</button>
-<video id="preview" autoplay></video>
-
-<div id="resultBox"></div>
-
-<!-- Manual input (hidden but can be used for testing) -->
-<input type="text" id="manualInput" style="width:100%; display:none;">
-
-<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+<div id="status">Checking token…</div>
 
 <script>
-const backendURL = "https://anti-counterfeit-backend-new.onrender.com/verify";
+(async () => {
+  // Read ?p=...
+  const params = new URLSearchParams(window.location.search);
+  const signedToken = params.get("p");
 
-function showResult(success, message) {
-    const box = document.getElementById("resultBox");
-    box.style.display = "block";
-    box.className = success ? "good" : "bad";
-    box.textContent = message;
-}
+  if(!signedToken){
+    document.getElementById("status").innerText = 
+      "No signed token found in link. Please scan a valid QR code.";
+    return;
+  }
 
-async function verifyToken(token) {
-    try {
-        const res = await fetch(backendURL + "?signedToken=" + encodeURIComponent(token));
-        const data = await res.json();
+  try {
+    // CALL BACKEND VERIFY
+    const res = await fetch(
+      "https://anti-counterfeit-backend-new.onrender.com/verify-token",
+      {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ signedToken })
+      }
+    );
 
-        if (res.ok) {
-            showResult(true, "✔ Product Verified\n\n" + JSON.stringify(data.data, null, 2));
-        } else {
-            showResult(false, "✖ Verification Failed: " + (data.error || "Invalid token"));
-        }
-    } catch (error) {
-        showResult(false, "Server Error: " + error);
+    const data = await res.json();
+
+    if(data.valid){
+      document.getElementById("status").innerHTML = 
+        "<h2 style='color:green'>✔ Verified Authentic</h2>" +
+        "<pre>" + JSON.stringify(data.payload, null, 2) + "</pre>";
+    } else {
+      document.getElementById("status").innerHTML = 
+        "<h2 style='color:red'>✖ Verification Failed</h2>";
     }
-}
-
-/* --- AUTO VERIFY ON PAGE LOAD (from QR scan redirect) --- */
-(function autoVerifyFromURL() {
-    const url = new URL(window.location.href);
-    const token = url.searchParams.get("signedToken"); // <-- correct parameter
-
-    if (token) {
-        verifyToken(token);  // auto verify immediately
-    }
+  }
+  catch(err){
+    document.getElementById("status").innerText = 
+      "Verification error: " + err;
+  }
 })();
-
-/* --- CAMERA SCANNING --- */
-const startBtn = document.getElementById("startBtn");
-const video = document.getElementById("preview");
-
-startBtn.onclick = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
-    video.srcObject = stream;
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    function tick() {
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imgData.data, canvas.width, canvas.height);
-
-            if (code) {
-                const tokenURL = new URL(code.data);
-                const token = tokenURL.searchParams.get("signedToken");
-
-                if (token) {
-                    verifyToken(token);
-                    return;
-                } else {
-                    showResult(false, "QR scanned but no signedToken found.");
-                }
-            }
-        }
-        requestAnimationFrame(tick);
-    }
-
-    tick();
-};
 </script>
 
 </body>
 </html>
-
