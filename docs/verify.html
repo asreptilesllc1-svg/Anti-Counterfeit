@@ -1,231 +1,199 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Product Verification</title>
 
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f0f2f5;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-  }
-
-  .card {
-    background: white;
-    padding: 30px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 420px;
-    text-align: center;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
-    opacity: 0;
-    transform: translateY(30px);
-    animation: fadeInUp 0.8s ease forwards;
-  }
-
-  @keyframes fadeInUp {
-    to {
-      opacity: 1;
-      transform: translateY(0);
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #050505;
+        color: white;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
     }
-  }
 
-  /* Animated Checkmark */
-  .checkmark {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    display: inline-block;
-    border: 4px solid #2ecc71;
-    position: relative;
-    animation: pop 0.4s ease-out;
-  }
+    /* Hologram floating background */
+    .holo-bg {
+        position: fixed;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(0,255,200,0.15), rgba(0,0,0,0.9) 70%);
+        filter: blur(60px);
+        animation: float 6s ease-in-out infinite alternate;
+        z-index: -2;
+    }
+    @keyframes float {
+        from { transform: translate(-10%, -10%); }
+        to { transform: translate(10%, 10%); }
+    }
 
-  .checkmark:after {
-    content: "";
-    position: absolute;
-    width: 25px;
-    height: 50px;
-    border-right: 4px solid #2ecc71;
-    border-bottom: 4px solid #2ecc71;
-    transform: rotate(45deg);
-    top: 10px;
-    left: 23px;
-    animation: drawCheck 0.5s ease 0.3s forwards;
-    opacity: 0;
-  }
+    .container {
+        text-align: center;
+        padding: 25px;
+        border-radius: 20px;
+        background: rgba(20,20,20,0.5);
+        box-shadow: 0 0 30px rgba(0,255,200,0.3);
+        backdrop-filter: blur(10px);
+        max-width: 480px;
+        animation: fadeIn 1s ease;
+    }
+    @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
 
-  @keyframes drawCheck {
-    from { opacity: 0; transform: scale(0.8) rotate(45deg); }
-    to { opacity: 1; transform: scale(1) rotate(45deg); }
-  }
+    /* HOLOGRAM RING */
+    .ring {
+        width: 200px;
+        height: 200px;
+        border: 5px solid rgba(0,255,180,0.4);
+        border-radius: 50%;
+        margin: 0 auto;
+        position: relative;
+        animation: spin 6s linear infinite;
+        box-shadow: 0 0 25px rgba(0,255,180,0.4);
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
 
-  /* Animated X */
-  .xmark {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    display: inline-block;
-    border: 4px solid #e74c3c;
-    position: relative;
-    animation: pop 0.4s ease-out;
-  }
+    .logo {
+        width: 120px;
+        border-radius: 12px;
+        position: absolute;
+        top: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 
-  .xmark:before,
-  .xmark:after {
-    content: "";
-    position: absolute;
-    width: 45px;
-    height: 4px;
-    background: #e74c3c;
-    top: 38px;
-    left: 17px;
-    opacity: 0;
-    animation: drawX 0.4s ease forwards;
-  }
+    .status {
+        font-size: 26px;
+        font-weight: bold;
+        margin-top: 20px;
+        min-height: 60px;
+    }
 
-  .xmark:before {
-    transform: rotate(45deg);
-    animation-delay: 0.2s;
-  }
+    /* SUCCESS CHECKMARK */
+    .checkmark {
+        display: none;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 6px solid #00ff9d;
+        margin: 20px auto 0 auto;
+        position: relative;
+        animation: pop 0.5s ease forwards;
+    }
+    @keyframes pop {
+        0% { transform: scale(0.2); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .checkmark:after {
+        content: "";
+        position: absolute;
+        left: 32px;
+        top: 12px;
+        width: 35px;
+        height: 70px;
+        border-right: 8px solid #00ff9d;
+        border-bottom: 8px solid #00ff9d;
+        transform: rotate(45deg);
+    }
 
-  .xmark:after {
-    transform: rotate(-45deg);
-    animation-delay: 0.35s;
-  }
+    /* BLOCKCHAIN BADGE */
+    .blockchain-badge {
+        display: none;
+        margin: 20px auto;
+        width: 90px;
+        height: 90px;
+        background: url("blockchain.png") center/contain no-repeat;
+        animation: rotateBadge 3s linear infinite, pulse 2s ease-in-out infinite alternate;
+    }
+    @keyframes rotateBadge {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+        from { filter: drop-shadow(0 0 5px #00ffd0); }
+        to { filter: drop-shadow(0 0 15px #00ffd0); }
+    }
 
-  @keyframes drawX {
-    from { opacity: 0; transform: scale(0.5); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  @keyframes pop {
-    0% { transform: scale(0.4); }
-    80% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-  }
-
-  /* Text animations */
-  .status {
-    font-size: 24px;
-    margin-top: 15px;
-    font-weight: bold;
-    opacity: 0;
-    animation: fadeIn 0.6s ease forwards 0.6s;
-  }
-
-  @keyframes fadeIn {
-    to { opacity: 1; }
-  }
-
-  .success { color: #2ecc71; }
-  .fail { color: #e74c3c; }
-
-  /* Payload table */
-  #details {
-    margin-top: 20px;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards 1.0s;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-
-  td {
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-    text-align: left;
-  }
-
-  .label { font-weight: bold; }
-
-  /* Shake animation for invalid */
-  .shake {
-    animation: shakeAnim 0.5s ease;
-  }
-
-  @keyframes shakeAnim {
-    0% { transform: translateX(0); }
-    25% { transform: translateX(-6px); }
-    50% { transform: translateX(6px); }
-    75% { transform: translateX(-6px); }
-    100% { transform: translateX(0); }
-  }
+    .payload-box {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.05);
+        color: #d0ffd0;
+        font-size: 16px;
+        display: none;
+    }
 </style>
 </head>
 
 <body>
+<div class="holo-bg"></div>
 
-<div class="card" id="verifyCard">
-  <div id="icon"></div>
-  <div id="statusMessage" class="status">Checking token...</div>
-  <div id="details"></div>
+<div class="container">
+    <div class="ring"></div>
+    <img src="logo.png" class="logo">
+
+    <div id="status" class="status">Checking token…</div>
+
+    <div id="checkmark" class="checkmark"></div>
+
+    <div id="badge" class="blockchain-badge"></div>
+
+    <div id="payloadBox" class="payload-box"></div>
 </div>
 
 <script>
 async function verifyToken() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("p");
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("p");
 
-  const statusMessage = document.getElementById("statusMessage");
-  const icon = document.getElementById("icon");
-  const details = document.getElementById("details");
-  const card = document.getElementById("verifyCard");
+    const status = document.getElementById("status");
+    const checkmark = document.getElementById("checkmark");
+    const payloadBox = document.getElementById("payloadBox");
+    const badge = document.getElementById("badge");
 
-  if (!token) {
-    statusMessage.innerHTML = "No token found";
-    statusMessage.classList.add("fail");
-    icon.innerHTML = `<div class="xmark"></div>`;
-    card.classList.add("shake");
-    return;
-  }
-
-  try {
-    const response = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signedToken: token })
-    });
-
-    const result = await response.json();
-
-    if (result.valid) {
-      icon.innerHTML = `<div class="checkmark"></div>`;
-      statusMessage.innerHTML = "AUTHENTIC PRODUCT";
-      statusMessage.classList.add("success");
-
-      const data = result.payload;
-      details.innerHTML = `
-        <table>
-          <tr><td class="label">Product ID:</td><td>${data.id}</td></tr>
-          <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-          <tr><td class="label">Batch:</td><td>${data.batch}</td></tr>
-          <tr><td class="label">Timestamp:</td><td>${new Date(data.timestamp).toLocaleString()}</td></tr>
-        </table>
-      `;
-
-    } else {
-      icon.innerHTML = `<div class="xmark"></div>`;
-      statusMessage.innerHTML = "INVALID / TAMPERED";
-      statusMessage.classList.add("fail");
-      card.classList.add("shake");
+    if (!token) {
+        status.innerHTML = "<span style='color:#ff4d4d'>No token provided.</span>";
+        return;
     }
 
-  } catch (err) {
-    icon.innerHTML = `<div class="xmark"></div>`;
-    statusMessage.innerHTML = "Verification Error";
-    statusMessage.classList.add("fail");
-    card.classList.add("shake");
-  }
+    try {
+        const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ signedToken: token })
+        });
+
+        const data = await res.json();
+
+        if (data.valid) {
+            status.innerHTML = "<span style='color:#00ff9d'>✔ Authentic Product</span>";
+            checkmark.style.display = "block";
+            badge.style.display = "block";
+
+            payloadBox.style.display = "block";
+            payloadBox.innerHTML = `
+                <strong>Product ID:</strong> ${data.payload.id}<br>
+                <strong>Name:</strong> ${data.payload.name}<br>
+                <strong>Batch:</strong> ${data.payload.batch}<br>
+                <strong>Timestamp:</strong> ${new Date(data.payload.timestamp).toLocaleString()}
+            `;
+
+        } else {
+            status.innerHTML = "<span style='color:#ff4d4d'>❌ INVALID TOKEN</span>";
+        }
+
+    } catch (err) {
+        status.innerHTML = "<span style='color:#ff4d4d'>Server error.</span>";
+    }
 }
 
 verifyToken();
