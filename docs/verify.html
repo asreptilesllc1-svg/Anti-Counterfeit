@@ -1,202 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Product Verification</title>
+<meta charset="UTF-8">
+<title>Verify Product</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
     body {
-        margin: 0;
+        background: #020d0a;
+        color: #00ff90;
         font-family: Arial, sans-serif;
-        background: #050505;
-        color: white;
-        overflow: hidden;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-    }
-
-    /* Hologram floating background */
-    .holo-bg {
-        position: fixed;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(0,255,200,0.15), rgba(0,0,0,0.9) 70%);
-        filter: blur(60px);
-        animation: float 6s ease-in-out infinite alternate;
-        z-index: -2;
-    }
-    @keyframes float {
-        from { transform: translate(-10%, -10%); }
-        to { transform: translate(10%, 10%); }
-    }
-
-    .container {
         text-align: center;
-        padding: 25px;
-        border-radius: 20px;
-        background: rgba(20,20,20,0.5);
-        box-shadow: 0 0 30px rgba(0,255,200,0.3);
-        backdrop-filter: blur(10px);
-        max-width: 480px;
-        animation: fadeIn 1s ease;
+        padding: 20px;
     }
-    @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
 
-    /* HOLOGRAM RING */
-    .ring {
-        width: 200px;
-        height: 200px;
-        border: 5px solid rgba(0,255,180,0.4);
+    /* TOP LOGO GLOW RING */
+    .top-logo-ring {
+        width: 220px;
+        height: 220px;
         border-radius: 50%;
-        margin: 0 auto;
-        position: relative;
-        animation: spin 6s linear infinite;
-        box-shadow: 0 0 25px rgba(0,255,180,0.4);
+        margin: 0 auto 20px auto;
+        border: 3px solid #00ff90;
+        box-shadow: 0 0 25px rgba(0,255,150,0.35), 
+                    inset 0 0 20px rgba(0,255,140,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,255,120,0.05);
     }
-    @keyframes spin {
+
+    .top-logo {
+        width: 130px;
+        height: 130px;
+        object-fit: contain;
+        display: block;
+        filter: drop-shadow(0 0 8px rgba(0,255,150,0.6));
+    }
+
+    /* AUTH CHECKMARK */
+    .big-check {
+        font-size: 60px;
+        margin: 20px 0;
+        color: #00ff90;
+    }
+
+    /* ROTATING HOLOGRAM SHIELD */
+    .holo-container {
+        margin: 25px auto;
+        width: 180px;
+        height: 180px;
+        animation: rotate 6s linear infinite;
+    }
+
+    .holo-container img {
+        width: 180px;
+        height: 180px;
+        filter: drop-shadow(0 0 12px rgba(0,255,200,0.6));
+    }
+
+    @keyframes rotate {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
     }
 
-    .logo {
-        width: 120px;
-        border-radius: 12px;
-        position: absolute;
-        top: 40px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
-
-    .status {
-        font-size: 26px;
-        font-weight: bold;
-        margin-top: 20px;
-        min-height: 60px;
-    }
-
-    /* SUCCESS CHECKMARK */
-    .checkmark {
-        display: none;
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        border: 6px solid #00ff9d;
-        margin: 20px auto 0 auto;
-        position: relative;
-        animation: pop 0.5s ease forwards;
-    }
-    @keyframes pop {
-        0% { transform: scale(0.2); opacity: 0; }
-        100% { transform: scale(1); opacity: 1; }
-    }
-    .checkmark:after {
-        content: "";
-        position: absolute;
-        left: 32px;
-        top: 12px;
-        width: 35px;
-        height: 70px;
-        border-right: 8px solid #00ff9d;
-        border-bottom: 8px solid #00ff9d;
-        transform: rotate(45deg);
-    }
-
-    /* BLOCKCHAIN BADGE */
-    .blockchain-badge {
-        display: none;
+    /* TOKEN DATA BOX */
+    .data-box {
         margin: 20px auto;
-        width: 90px;
-        height: 90px;
-        background: url("blockchain.png") center/contain no-repeat;
-        animation: rotateBadge 3s linear infinite, pulse 2s ease-in-out infinite alternate;
-    }
-    @keyframes rotateBadge {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    @keyframes pulse {
-        from { filter: drop-shadow(0 0 5px #00ffd0); }
-        to { filter: drop-shadow(0 0 15px #00ffd0); }
-    }
-
-    .payload-box {
-        margin-top: 20px;
-        padding: 15px;
+        background: rgba(0,255,120,0.05);
+        padding: 20px;
         border-radius: 12px;
-        background: rgba(255,255,255,0.05);
-        color: #d0ffd0;
-        font-size: 16px;
-        display: none;
+        width: 85%;
+        color: #b6ffe0;
+        font-size: 18px;
+        line-height: 1.6;
+        border: 1px solid rgba(0,255,150,0.2);
     }
 </style>
 </head>
 
 <body>
-<div class="holo-bg"></div>
 
-<div class="container">
-    <div class="ring"></div>
-    <img src="logo.png" class="logo">
+<!-- TOP LOGO GLOW RING -->
+<div class="top-logo-ring">
+    <img src="./assets/logo.png" class="top-logo" alt="Brand Logo">
+</div>
 
-    <div id="status" class="status">Checking token…</div>
+<h2 style="color:#00ff90; font-size:32px; margin-top:10px;">✔ Authentic Product</h2>
 
-    <div id="checkmark" class="checkmark"></div>
+<!-- AUTH CHECKMARK -->
+<div class="big-check">✔</div>
 
-    <div id="badge" class="blockchain-badge"></div>
+<!-- ROTATING HOLOGRAM SEAL -->
+<div class="holo-container">
+    <img src="./assets/hologram.png" alt="Hologram Seal">
+</div>
 
-    <div id="payloadBox" class="payload-box"></div>
+<!-- PRODUCT DETAILS BOX -->
+<div id="productData" class="data-box">
+    Checking token...
 </div>
 
 <script>
-async function verifyToken() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("p");
+// READ TOKEN FROM URL
+const params = new URLSearchParams(window.location.search);
+const token = params.get("p");
 
-    const status = document.getElementById("status");
-    const checkmark = document.getElementById("checkmark");
-    const payloadBox = document.getElementById("payloadBox");
-    const badge = document.getElementById("badge");
+// DISPLAY DATA
+const box = document.getElementById("productData");
 
-    if (!token) {
-        status.innerHTML = "<span style='color:#ff4d4d'>No token provided.</span>";
-        return;
-    }
+if (!token) {
+    box.innerHTML = "<b style='color:red;'>No token found.</b>";
+} else {
+    verifyToken(token);
+}
 
+async function verifyToken(t) {
     try {
         const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ signedToken: token })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signedToken: t })
         });
 
         const data = await res.json();
 
-        if (data.valid) {
-            status.innerHTML = "<span style='color:#00ff9d'>✔ Authentic Product</span>";
-            checkmark.style.display = "block";
-            badge.style.display = "block";
-
-            payloadBox.style.display = "block";
-            payloadBox.innerHTML = `
-                <strong>Product ID:</strong> ${data.payload.id}<br>
-                <strong>Name:</strong> ${data.payload.name}<br>
-                <strong>Batch:</strong> ${data.payload.batch}<br>
-                <strong>Timestamp:</strong> ${new Date(data.payload.timestamp).toLocaleString()}
-            `;
-
-        } else {
-            status.innerHTML = "<span style='color:#ff4d4d'>❌ INVALID TOKEN</span>";
+        if (!data.valid) {
+            box.innerHTML = "<b style='color:red;'>Invalid Token</b>";
+            return;
         }
 
+        box.innerHTML = `
+            <b>Product ID:</b> ${data.payload.id}<br>
+            <b>Name:</b> ${data.payload.name}<br>
+            <b>Batch:</b> ${data.payload.batch}<br>
+            <b>Timestamp:</b> ${data.payload.timestamp}
+        `;
     } catch (err) {
-        status.innerHTML = "<span style='color:#ff4d4d'>Server error.</span>";
+        box.innerHTML = "<b style='color:red;'>Server Error</b>";
     }
 }
-
-verifyToken();
 </script>
 
 </body>
