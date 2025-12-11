@@ -1,98 +1,178 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Generate QR Code</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Generate Product QR Code</title>
+
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #eef1f5;
-    margin: 0;
-    padding: 20px;
-  }
-  .container {
-    max-width: 480px;
-    margin: auto;
-    background: #fff;
-    padding: 25px;
-    border-radius: 14px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-  }
-  h2 {
-    text-align: center;
-  }
-  input, button {
-    width: 100%;
-    margin: 10px 0;
-    padding: 14px;
-    font-size: 17px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-  }
-  button {
-    background: #0077ff;
-    color: white;
-    font-weight: bold;
-  }
-  button:hover {
-    background: #005ad1;
-  }
-  #qrImage {
-    display: block;
-    margin: 20px auto;
-    width: 260px;
-  }
+    body {
+        font-family: "Inter", sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0a0f14;
+        color: #e6e6e6;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+
+    .container {
+        width: 95%;
+        max-width: 420px;
+        background: #111821;
+        border-radius: 16px;
+        padding: 25px 30px;
+        box-shadow: 0 0 25px rgba(0,0,0,0.6);
+        border: 1px solid #1d2b38;
+        animation: fadeIn 0.5s ease;
+    }
+
+    h1 {
+        margin-top: 0;
+        text-align: center;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        color: #4cc3ff;
+    }
+
+    label {
+        font-size: 15px;
+        font-weight: 600;
+        margin-top: 14px;
+        display: block;
+        color: #c9d5e0;
+    }
+
+    input {
+        width: 100%;
+        padding: 12px;
+        margin-top: 6px;
+        border-radius: 10px;
+        border: 1px solid #2e3c49;
+        background: #0f141a;
+        color: #d8e2ea;
+        font-size: 15px;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #4cc3ff;
+        box-shadow: 0 0 8px #4cc3ff55;
+    }
+
+    button {
+        width: 100%;
+        padding: 14px;
+        margin-top: 22px;
+        background: #4cc3ff;
+        border: none;
+        color: #000;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: 0.2s ease;
+        letter-spacing: 0.3px;
+    }
+
+    button:hover {
+        background: #33b0f2;
+    }
+
+    #qr-box {
+        margin-top: 20px;
+        text-align: center;
+        padding: 18px;
+        border-radius: 14px;
+        background: #0f141a;
+        border: 1px solid #1e2a34;
+        display: none;
+    }
+
+    #qr-box img {
+        width: 220px;
+        border-radius: 8px;
+    }
+
+    .status {
+        margin-top: 12px;
+        font-size: 14px;
+        text-align: center;
+        color: #8bb8d4;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
 </head>
+
 <body>
 
 <div class="container">
-  <h2>Generate QR Code</h2>
+    <h1>Generate QR Code</h1>
 
-  <label>Product ID</label>
-  <input id="pid" placeholder="e.g. TEST-001">
+    <label>Product ID</label>
+    <input id="pid" placeholder="e.g., TEST-001" />
 
-  <label>Name</label>
-  <input id="pname" placeholder="Product name">
+    <label>Product Name</label>
+    <input id="pname" placeholder="e.g., Phone Test" />
 
-  <label>Batch</label>
-  <input id="batch" placeholder="Batch number">
+    <label>Batch</label>
+    <input id="pbatch" placeholder="e.g., B1" />
 
-  <button onclick="makeQR()">Generate QR</button>
+    <button onclick="generateQR()">Generate QR Code</button>
 
-  <img id="qrImage" style="display:none;">
+    <div id="qr-box">
+        <div class="status">QR Code Generated</div>
+        <img id="qr-img" />
+    </div>
 </div>
 
 <script>
-async function makeQR() {
-  const payload = {
-    id: document.getElementById("pid").value,
-    name: document.getElementById("pname").value,
-    batch: document.getElementById("batch").value,
-    timestamp: Date.now()
-  };
+async function generateQR() {
+    const id = document.getElementById("pid").value.trim();
+    const name = document.getElementById("pname").value.trim();
+    const batch = document.getElementById("pbatch").value.trim();
 
-  const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+    if (!id || !name || !batch) {
+        alert("Please fill in all fields.");
+        return;
+    }
 
-  const data = await res.json();
+    const payload = { id, name, batch, timestamp: Date.now() };
 
-  if (!data.signedToken) {
-    alert("Signing failed.");
-    return;
-  }
+    const backendURL = "https://anti-counterfeit-backend-new.onrender.com/sign";
 
-  const link = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(data.signedToken)}`;
+    try {
+        const res = await fetch(backendURL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
 
-  // Create local QR
-  const apiURL = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(link)}`;
-  const qrImg = document.getElementById("qrImage");
-  qrImg.src = apiURL;
-  qrImg.style.display = "block";
+        const data = await res.json();
+
+        if (!data.signedToken) {
+            alert("Signing failed. Check backend logs.");
+            return;
+        }
+
+        const signedToken = encodeURIComponent(data.signedToken);
+        const verifyURL = `https://verify.myproductauth.com/verify.html?p=${signedToken}`;
+
+        document.getElementById("qr-img").src =
+            `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${verifyURL}`;
+
+        document.getElementById("qr-box").style.display = "block";
+
+    } catch (err) {
+        console.error(err);
+        alert("Error generating QR.");
+    }
 }
 </script>
 
