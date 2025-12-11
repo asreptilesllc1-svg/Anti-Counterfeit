@@ -1,79 +1,191 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Verify Product Authenticity</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Verification</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
 
-    .card {
-      background: white;
-      padding: 25px;
-      width: 90%;
-      max-width: 420px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      text-align: center;
-    }
+  .card {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease forwards;
+  }
 
-    .status {
-      font-size: 26px;
-      font-weight: bold;
-      margin-bottom: 15px;
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
+  }
 
-    .success {
-      color: #2ecc71;
-    }
+  /* Animated Checkmark */
+  .checkmark {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 4px solid #2ecc71;
+    position: relative;
+    animation: pop 0.4s ease-out;
+  }
 
-    .fail {
-      color: #e74c3c;
-    }
+  .checkmark:after {
+    content: "";
+    position: absolute;
+    width: 25px;
+    height: 50px;
+    border-right: 4px solid #2ecc71;
+    border-bottom: 4px solid #2ecc71;
+    transform: rotate(45deg);
+    top: 10px;
+    left: 23px;
+    animation: drawCheck 0.5s ease 0.3s forwards;
+    opacity: 0;
+  }
 
-    table {
-      width: 100%;
-      margin-top: 20px;
-      border-collapse: collapse;
-    }
+  @keyframes drawCheck {
+    from { opacity: 0; transform: scale(0.8) rotate(45deg); }
+    to { opacity: 1; transform: scale(1) rotate(45deg); }
+  }
 
-    td {
-      padding: 8px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-    }
+  /* Animated X */
+  .xmark {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 4px solid #e74c3c;
+    position: relative;
+    animation: pop 0.4s ease-out;
+  }
 
-    .label {
-      font-weight: bold;
-      width: 35%;
-    }
-  </style>
+  .xmark:before,
+  .xmark:after {
+    content: "";
+    position: absolute;
+    width: 45px;
+    height: 4px;
+    background: #e74c3c;
+    top: 38px;
+    left: 17px;
+    opacity: 0;
+    animation: drawX 0.4s ease forwards;
+  }
+
+  .xmark:before {
+    transform: rotate(45deg);
+    animation-delay: 0.2s;
+  }
+
+  .xmark:after {
+    transform: rotate(-45deg);
+    animation-delay: 0.35s;
+  }
+
+  @keyframes drawX {
+    from { opacity: 0; transform: scale(0.5); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes pop {
+    0% { transform: scale(0.4); }
+    80% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  /* Text animations */
+  .status {
+    font-size: 24px;
+    margin-top: 15px;
+    font-weight: bold;
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards 0.6s;
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  .success { color: #2ecc71; }
+  .fail { color: #e74c3c; }
+
+  /* Payload table */
+  #details {
+    margin-top: 20px;
+    opacity: 0;
+    animation: fadeIn 0.8s ease forwards 1.0s;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+
+  .label { font-weight: bold; }
+
+  /* Shake animation for invalid */
+  .shake {
+    animation: shakeAnim 0.5s ease;
+  }
+
+  @keyframes shakeAnim {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    50% { transform: translateX(6px); }
+    75% { transform: translateX(-6px); }
+    100% { transform: translateX(0); }
+  }
+</style>
 </head>
+
 <body>
 
-  <div class="card">
-    <div id="statusMessage" class="status">Checking token...</div>
-    <div id="details"></div>
-  </div>
+<div class="card" id="verifyCard">
+  <div id="icon"></div>
+  <div id="statusMessage" class="status">Checking token...</div>
+  <div id="details"></div>
+</div>
 
 <script>
 async function verifyToken() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("p");
 
+  const statusMessage = document.getElementById("statusMessage");
+  const icon = document.getElementById("icon");
+  const details = document.getElementById("details");
+  const card = document.getElementById("verifyCard");
+
   if (!token) {
-    document.getElementById("statusMessage").innerHTML = "✘ No token found";
-    document.getElementById("statusMessage").classList.add("fail");
+    statusMessage.innerHTML = "No token found";
+    statusMessage.classList.add("fail");
+    icon.innerHTML = `<div class="xmark"></div>`;
+    card.classList.add("shake");
     return;
   }
 
@@ -87,12 +199,12 @@ async function verifyToken() {
     const result = await response.json();
 
     if (result.valid) {
-      document.getElementById("statusMessage").innerHTML = "✔ AUTHENTIC PRODUCT";
-      document.getElementById("statusMessage").classList.add("success");
+      icon.innerHTML = `<div class="checkmark"></div>`;
+      statusMessage.innerHTML = "AUTHENTIC PRODUCT";
+      statusMessage.classList.add("success");
 
       const data = result.payload;
-
-      document.getElementById("details").innerHTML = `
+      details.innerHTML = `
         <table>
           <tr><td class="label">Product ID:</td><td>${data.id}</td></tr>
           <tr><td class="label">Name:</td><td>${data.name}</td></tr>
@@ -100,14 +212,19 @@ async function verifyToken() {
           <tr><td class="label">Timestamp:</td><td>${new Date(data.timestamp).toLocaleString()}</td></tr>
         </table>
       `;
+
     } else {
-      document.getElementById("statusMessage").innerHTML = "✘ INVALID / TAMPERED";
-      document.getElementById("statusMessage").classList.add("fail");
+      icon.innerHTML = `<div class="xmark"></div>`;
+      statusMessage.innerHTML = "INVALID / TAMPERED";
+      statusMessage.classList.add("fail");
+      card.classList.add("shake");
     }
 
   } catch (err) {
-    document.getElementById("statusMessage").innerHTML = "✘ Verification Error";
-    document.getElementById("statusMessage").classList.add("fail");
+    icon.innerHTML = `<div class="xmark"></div>`;
+    statusMessage.innerHTML = "Verification Error";
+    statusMessage.classList.add("fail");
+    card.classList.add("shake");
   }
 }
 
