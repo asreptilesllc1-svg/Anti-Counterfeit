@@ -2,120 +2,87 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Product Verification</title>
+<title>Verify Product</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-    body {
-        background: #f5f5f5;
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        height: 100vh;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-    }
-
-    #container {
-        width: 90%;
-        max-width: 600px;
-    }
-
-    #status {
-        font-size: 28px;
-        margin-bottom: 20px;
-        font-weight: bold;
-    }
-
-    .auth-success {
-        color: green;
-    }
-
-    .auth-fail {
-        color: red;
-    }
-
-    #details {
-        font-size: 20px;
-        margin-top: 20px;
-        line-height: 1.6;
-    }
-
-    #loading {
-        font-size: 28px;
-        font-weight: bold;
-        color: #555;
-    }
+  body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+  }
+  .box {
+    width: 100%;
+    max-width: 500px;
+    background: #fff;
+    padding: 25px;
+    margin: 20px;
+    border-radius: 14px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    text-align: center;
+  }
+  h2 {
+    margin-top: 0;
+  }
+  #status {
+    margin-top: 25px;
+    font-size: 26px;
+    font-weight: bold;
+  }
+  .ok {
+    color: green;
+  }
+  .bad {
+    color: red;
+  }
 </style>
-</head>
 
+</head>
 <body>
-<div id="container">
-    <div id="loading">Checking token…</div>
-    <div id="status"></div>
-    <div id="details"></div>
+
+<div class="box">
+  <h2>Verifying Product…</h2>
+  <div id="status">Checking token…</div>
 </div>
 
 <script>
-async function verifyToken() {
-    const url = new URL(window.location.href);
-    let token = url.searchParams.get("p");
+async function runVerify() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("p");
 
-    // If QR contains ONLY raw token (no ?p=)
-    if (!token) {
-        const raw = window.location.href.split("/verify.html?")[1];
-        if (raw) {
-            token = raw;
-        }
+  const status = document.getElementById("status");
+
+  if (!token) {
+    status.textContent = "No token found.";
+    status.className = "bad";
+    return;
+  }
+
+  try {
+    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signedToken: token })
+    });
+
+    const data = await res.json();
+
+    if (data.valid) {
+      status.textContent = "✔ AUTHENTIC PRODUCT";
+      status.className = "ok";
+    } else {
+      status.textContent = "✘ INVALID / TAMPERED";
+      status.className = "bad";
     }
-
-    if (!token) {
-        document.getElementById("loading").textContent = "";
-        document.getElementById("status").textContent = "No token provided.";
-        document.getElementById("status").classList.add("auth-fail");
-        return;
-    }
-
-    try {
-        const response = await fetch(
-            "https://anti-counterfeit-backend-new.onrender.com/verify-token",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ signedToken: token })
-            }
-        );
-
-        const result = await response.json();
-
-        document.getElementById("loading").textContent = "";
-
-        if (result.valid) {
-            document.getElementById("status").textContent = "✔ AUTHENTIC";
-            document.getElementById("status").classList.add("auth-success");
-
-            const p = result.payload;
-
-            document.getElementById("details").innerHTML = `
-                <strong>Product ID:</strong> ${p.id}<br>
-                <strong>Name:</strong> ${p.name}<br>
-                <strong>Batch:</strong> ${p.batch}<br>
-                <strong>Timestamp:</strong> ${new Date(p.timestamp).toLocaleString()}
-            `;
-        } else {
-            document.getElementById("status").textContent = "✖ INVALID TOKEN";
-            document.getElementById("status").classList.add("auth-fail");
-        }
-    } catch (err) {
-        document.getElementById("loading").textContent = "";
-        document.getElementById("status").textContent = "Server error.";
-        document.getElementById("status").classList.add("auth-fail");
-    }
+  } catch (err) {
+    status.textContent = "Server error";
+    status.className = "bad";
+  }
 }
 
-verifyToken();
+runVerify();
 </script>
 
 </body>

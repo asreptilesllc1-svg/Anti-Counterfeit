@@ -1,74 +1,100 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Create QR Code</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    input, button { margin: 8px 0; padding: 8px; width: 100%; }
-    #qr { margin-top: 20px; }
-  </style>
+<meta charset="UTF-8">
+<title>Generate QR Code</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #eef1f5;
+    margin: 0;
+    padding: 20px;
+  }
+  .container {
+    max-width: 480px;
+    margin: auto;
+    background: #fff;
+    padding: 25px;
+    border-radius: 14px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+  }
+  h2 {
+    text-align: center;
+  }
+  input, button {
+    width: 100%;
+    margin: 10px 0;
+    padding: 14px;
+    font-size: 17px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+  button {
+    background: #0077ff;
+    color: white;
+    font-weight: bold;
+  }
+  button:hover {
+    background: #005ad1;
+  }
+  #qrImage {
+    display: block;
+    margin: 20px auto;
+    width: 260px;
+  }
+</style>
 </head>
 <body>
 
-  <h2>Create Product QR Code</h2>
+<div class="container">
+  <h2>Generate QR Code</h2>
 
   <label>Product ID</label>
-  <input id="pid" placeholder="Ex: TEST-001">
+  <input id="pid" placeholder="e.g. TEST-001">
 
-  <label>Product Name</label>
-  <input id="pname" placeholder="Ex: Phone Test">
+  <label>Name</label>
+  <input id="pname" placeholder="Product name">
 
-  <label>Batch Number</label>
-  <input id="batch" placeholder="Ex: B1">
+  <label>Batch</label>
+  <input id="batch" placeholder="Batch number">
 
-  <button onclick="generateQR()">Generate QR</button>
+  <button onclick="makeQR()">Generate QR</button>
 
-  <div id="qr"></div>
+  <img id="qrImage" style="display:none;">
+</div>
 
-  <script>
-    const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
+<script>
+async function makeQR() {
+  const payload = {
+    id: document.getElementById("pid").value,
+    name: document.getElementById("pname").value,
+    batch: document.getElementById("batch").value,
+    timestamp: Date.now()
+  };
 
-    async function generateQR() {
-      const payload = {
-        id: document.getElementById("pid").value,
-        name: document.getElementById("pname").value,
-        batch: document.getElementById("batch").value,
-        timestamp: Date.now()
-      };
+  const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 
-      // 1️⃣ Ask backend to sign the payload
-      let res = await fetch(`${BACKEND}/sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+  const data = await res.json();
 
-      let data = await res.json();
-      
-      if (!data.signedToken) {
-        alert("Error generating signed token");
-        return;
-      }
+  if (!data.signedToken) {
+    alert("Signing failed.");
+    return;
+  }
 
-      const signedToken = data.signedToken;
+  const link = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(data.signedToken)}`;
 
-      // 2️⃣ Build URL to verify page
-      const verifyURL = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(signedToken)}`;
+  // Create local QR
+  const apiURL = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(link)}`;
+  const qrImg = document.getElementById("qrImage");
+  qrImg.src = apiURL;
+  qrImg.style.display = "block";
+}
+</script>
 
-      // 3️⃣ Render QR
-      QRCode.toCanvas(verifyURL, { width: 300 }, function (err, canvas) {
-        if (err) {
-          console.error(err);
-          alert("QR generation error");
-          return;
-        }
-        const qrDiv = document.getElementById("qr");
-        qrDiv.innerHTML = "";
-        qrDiv.appendChild(canvas);
-      });
-    }
-  </script>
 </body>
 </html>

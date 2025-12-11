@@ -1,35 +1,54 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Product Authentication</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    h1 {
-      font-size: 32px;
-      margin-bottom: 20px;
-    }
-    a.button {
-      display: inline-block;
-      margin: 15px;
-      padding: 15px 25px;
-      background: #0078ff;
-      color: white;
-      text-decoration: none;
-      border-radius: 10px;
-      font-size: 20px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Product Authentication</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f5f7fa;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  .container {
+    text-align: center;
+    background: white;
+    padding: 40px;
+    border-radius: 14px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    width: 90%;
+    max-width: 420px;
+  }
+  h1 {
+    margin-bottom: 30px;
+    font-size: 26px;
+  }
+  a.button {
+    display: block;
+    margin: 15px 0;
+    padding: 14px;
+    background: #0066ff;
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  a.button:hover {
+    background: #004ecc;
+  }
+</style>
 </head>
 <body>
-  <h1>Product Authentication Portal</h1>
-  <p>Select an option:</p>
+  <div class="container">
+    <h1>Product Authentication</h1>
 
-  <a class="button" href="verify.html">Verify Product</a>
-  <a class="button" href="generate.html">Generate QR Code</a>
+    <a class="button" href="generate.html">Generate QR Code</a>
+    <a class="button" href="verify.html">Verify Authenticity</a>
+  </div>
 </body>
 </html>
