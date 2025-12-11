@@ -1,54 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Product Authentication</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: #f5f7fa;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-  }
-  .container {
-    text-align: center;
-    background: white;
-    padding: 40px;
-    border-radius: 14px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-    width: 90%;
-    max-width: 420px;
-  }
-  h1 {
-    margin-bottom: 30px;
-    font-size: 26px;
-  }
-  a.button {
-    display: block;
-    margin: 15px 0;
-    padding: 14px;
-    background: #0066ff;
-    color: white;
-    border-radius: 8px;
-    text-decoration: none;
-    font-size: 18px;
-    font-weight: bold;
-  }
-  a.button:hover {
-    background: #004ecc;
-  }
-</style>
-</head>
-<body>
-  <div class="container">
-    <h1>Product Authentication</h1>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anti-Counterfeit Platform</title>
 
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at center, #0a0f1c, #000000 80%);
+      font-family: "Segoe UI", sans-serif;
+      color: #e0e0ff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 40px;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #7df9ff, #4c8fff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 1.5px;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    .subtitle {
+      opacity: 0.65;
+      font-size: 16px;
+      margin-bottom: 40px;
+      animation: fadeIn 1.1s ease-out;
+    }
+
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 100%;
+      max-width: 320px;
+      animation: fadeIn 1.4s ease-out;
+    }
+
+    a.button {
+      display: block;
+      padding: 15px;
+      font-size: 18px;
+      text-decoration: none;
+      color: #dff3ff;
+      background: linear-gradient(90deg, #009dff, #005eff);
+      border-radius: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: 0.25s ease;
+      border: 1px solid rgba(120, 170, 255, 0.25);
+      box-shadow: 0 0 12px rgba(0, 150, 255, 0.3);
+    }
+
+    a.button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 0 20px rgba(0, 150, 255, 0.55);
+    }
+
+    /* Logo styling (optional if you add your logo later) */
+    .logo {
+      width: 115px;
+      height: 115px;
+      margin-bottom: 25px;
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Optional Logo (uncomment + replace logo.png if needed) -->
+  <!-- <img src="logo.png" class="logo" alt="Brand Logo"> -->
+
+  <h1>Product Authentication</h1>
+  <div class="subtitle">Blockchain-backed security • Instant verification</div>
+
+  <div class="button-container">
     <a class="button" href="generate.html">Generate QR Code</a>
-    <a class="button" href="verify.html">Verify Authenticity</a>
+    <a class="button" href="verify.html">Verify Product</a>
   </div>
+
 </body>
 </html>
+
