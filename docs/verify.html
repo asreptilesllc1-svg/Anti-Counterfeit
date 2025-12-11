@@ -1,61 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Verify Product</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
     body {
-        background: #020d0a;
-        color: #00ff90;
-        font-family: Arial, sans-serif;
-        text-align: center;
-        padding: 20px;
-    }
-
-    /* TOP LOGO GLOW RING */
-    .top-logo-ring {
-        width: 220px;
-        height: 220px;
-        border-radius: 50%;
-        margin: 0 auto 20px auto;
-        border: 3px solid #00ff90;
-        box-shadow: 0 0 25px rgba(0,255,150,0.35), 
-                    inset 0 0 20px rgba(0,255,140,0.15);
+        font-family: "Inter", sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0a0f14;
+        color: #e6e6e6;
         display: flex;
-        align-items: center;
         justify-content: center;
-        background: rgba(0,255,120,0.05);
+        align-items: center;
+        min-height: 100vh;
+        text-align: center;
     }
 
-    .top-logo {
+    .container {
+        width: 92%;
+        max-width: 420px;
+        background: #111821;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 0 25px rgba(0,0,0,0.6);
+        border: 1px solid #1d2b38;
+        animation: fadeIn 0.5s ease;
+    }
+
+    .logo {
+        width: 120px;
+        margin: 0 auto 10px;
+    }
+
+    h1 {
+        font-weight: 600;
+        color: #4cc3ff;
+        margin-bottom: 20px;
+    }
+
+    #statusText {
+        margin-top: 20px;
+        font-size: 1.2rem;
+        color: #9fbccd;
+    }
+
+    .item-box {
+        margin-top: 25px;
+        padding: 18px;
+        border-radius: 14px;
+        background: #0f141a;
+        border: 1px solid #1e2a34;
+        display: none;
+    }
+
+    .item-box p {
+        margin: 6px 0;
+        font-size: 1rem;
+        color: #d0e7f3;
+    }
+
+    /* 🔰 Rotating Shield Animation */
+    .shield {
         width: 130px;
         height: 130px;
-        object-fit: contain;
-        display: block;
-        filter: drop-shadow(0 0 8px rgba(0,255,150,0.6));
-    }
-
-    /* AUTH CHECKMARK */
-    .big-check {
-        font-size: 60px;
-        margin: 20px 0;
-        color: #00ff90;
-    }
-
-    /* ROTATING HOLOGRAM SHIELD */
-    .holo-container {
-        margin: 25px auto;
-        width: 180px;
-        height: 180px;
-        animation: rotate 6s linear infinite;
-    }
-
-    .holo-container img {
-        width: 180px;
-        height: 180px;
-        filter: drop-shadow(0 0 12px rgba(0,255,200,0.6));
+        margin: 15px auto;
+        background-image: url("shield.png"); /* ← replace with your shield image */
+        background-size: contain;
+        background-repeat: no-repeat;
+        animation: rotate 3s linear infinite;
+        display: none;
     }
 
     @keyframes rotate {
@@ -63,83 +79,90 @@
         to { transform: rotate(360deg); }
     }
 
-    /* TOKEN DATA BOX */
-    .data-box {
-        margin: 20px auto;
-        background: rgba(0,255,120,0.05);
-        padding: 20px;
-        border-radius: 12px;
-        width: 85%;
-        color: #b6ffe0;
-        font-size: 18px;
-        line-height: 1.6;
-        border: 1px solid rgba(0,255,150,0.2);
+    /* Fade-in animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .success {
+        color: #4cff9d;
+        font-weight: 600;
+        font-size: 1.4rem;
+    }
+
+    .fail {
+        color: #ff5f5f;
+        font-weight: 600;
+        font-size: 1.3rem;
     }
 </style>
 </head>
 
 <body>
 
-<!-- TOP LOGO GLOW RING -->
-<div class="top-logo-ring">
-    <img src="./assets/logo.png" class="top-logo" alt="Brand Logo">
-</div>
+<div class="container">
+    <img src="logo.png" class="logo" alt="Brand Logo">
 
-<h2 style="color:#00ff90; font-size:32px; margin-top:10px;">✔ Authentic Product</h2>
+    <h1>Authenticity Check</h1>
 
-<!-- AUTH CHECKMARK -->
-<div class="big-check">✔</div>
+    <div id="shield" class="shield"></div>
 
-<!-- ROTATING HOLOGRAM SEAL -->
-<div class="holo-container">
-    <img src="./assets/hologram.png" alt="Hologram Seal">
-</div>
+    <div id="statusText">Checking token...</div>
 
-<!-- PRODUCT DETAILS BOX -->
-<div id="productData" class="data-box">
-    Checking token...
+    <div id="itemDetails" class="item-box"></div>
 </div>
 
 <script>
-// READ TOKEN FROM URL
-const params = new URLSearchParams(window.location.search);
-const token = params.get("p");
+async function verifyToken() {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("p");
 
-// DISPLAY DATA
-const box = document.getElementById("productData");
+    const statusText = document.getElementById("statusText");
+    const shield = document.getElementById("shield");
+    const itemBox = document.getElementById("itemDetails");
 
-if (!token) {
-    box.innerHTML = "<b style='color:red;'>No token found.</b>";
-} else {
-    verifyToken(token);
-}
+    if (!token) {
+        statusText.textContent = "No token provided.";
+        statusText.classList.add("fail");
+        return;
+    }
 
-async function verifyToken(t) {
     try {
         const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ signedToken: t })
+            body: JSON.stringify({ signedToken: token }),
         });
 
         const data = await res.json();
 
-        if (!data.valid) {
-            box.innerHTML = "<b style='color:red;'>Invalid Token</b>";
-            return;
+        if (data.valid) {
+            shield.style.display = "block";
+            statusText.textContent = "✔ Authentic Product";
+            statusText.classList.add("success");
+
+            itemBox.style.display = "block";
+            itemBox.innerHTML = `
+                <p><strong>ID:</strong> ${data.payload.id}</p>
+                <p><strong>Name:</strong> ${data.payload.name}</p>
+                <p><strong>Batch:</strong> ${data.payload.batch}</p>
+                <p><strong>Timestamp:</strong> ${new Date(data.payload.timestamp).toLocaleString()}</p>
+            `;
+        } else {
+            statusText.textContent = "✖ Verification Failed";
+            statusText.classList.add("fail");
         }
 
-        box.innerHTML = `
-            <b>Product ID:</b> ${data.payload.id}<br>
-            <b>Name:</b> ${data.payload.name}<br>
-            <b>Batch:</b> ${data.payload.batch}<br>
-            <b>Timestamp:</b> ${data.payload.timestamp}
-        `;
     } catch (err) {
-        box.innerHTML = "<b style='color:red;'>Server Error</b>";
+        statusText.textContent = "Server Error";
+        statusText.classList.add("fail");
     }
 }
+
+verifyToken();
 </script>
 
 </body>
 </html>
+
