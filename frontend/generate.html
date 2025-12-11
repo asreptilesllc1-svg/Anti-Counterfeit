@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Create QR Code</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, button { margin: 8px 0; padding: 8px; width: 100%; }
+    #qr { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <h2>Create Product QR Code</h2>
+
+  <label>Product ID</label>
+  <input id="pid" placeholder="Ex: TEST-001">
+
+  <label>Product Name</label>
+  <input id="pname" placeholder="Ex: Phone Test">
+
+  <label>Batch Number</label>
+  <input id="batch" placeholder="Ex: B1">
+
+  <button onclick="generateQR()">Generate QR</button>
+
+  <div id="qr"></div>
+
+  <script>
+    const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
+
+    async function generateQR() {
+      const payload = {
+        id: document.getElementById("pid").value,
+        name: document.getElementById("pname").value,
+        batch: document.getElementById("batch").value,
+        timestamp: Date.now()
+      };
+
+      // 1️⃣ Ask backend to sign the payload
+      let res = await fetch(`${BACKEND}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      let data = await res.json();
+      
+      if (!data.signedToken) {
+        alert("Error generating signed token");
+        return;
+      }
+
+      const signedToken = data.signedToken;
+
+      // 2️⃣ Build URL to verify page
+      const verifyURL = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(signedToken)}`;
+
+      // 3️⃣ Render QR
+      QRCode.toCanvas(verifyURL, { width: 300 }, function (err, canvas) {
+        if (err) {
+          console.error(err);
+          alert("QR generation error");
+          return;
+        }
+        const qrDiv = document.getElementById("qr");
+        qrDiv.innerHTML = "";
+        qrDiv.appendChild(canvas);
+      });
+    }
+  </script>
+</body>
+</html>
