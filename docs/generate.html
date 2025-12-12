@@ -63,33 +63,30 @@
         background: #0a84ff;
     }
 
-    #qrResult {
+    #qrContainer {
         margin-top: 25px;
         padding: 20px;
         background: #10141f;
         border-radius: 10px;
     }
-
-    #qrResult img {
-        width: 230px;
-        margin-top: 10px;
-        filter: drop-shadow(0 0 10px rgba(0, 140, 255, 0.55));
-    }
 </style>
 </head>
 
 <body>
-    <h1>Generate Authentic QR Code</h1>
+<h1>Generate Authentic QR Code</h1>
 
-    <div class="card">
-        <input id="prodId" placeholder="Product ID (e.g., TEST-001)" />
-        <input id="prodName" placeholder="Product Name" />
-        <input id="prodBatch" placeholder="Batch #" />
+<div class="card">
+    <input id="prodId" placeholder="Product ID (e.g., TEST-001)" />
+    <input id="prodName" placeholder="Product Name" />
+    <input id="prodBatch" placeholder="Batch #" />
 
-        <button id="genBtn">Generate QR Code</button>
+    <button id="genBtn">Generate QR Code</button>
 
-        <div id="qrResult"></div>
-    </div>
+    <div id="qrContainer"></div>
+</div>
+
+<!-- QR Code Styling library (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
 
 <script>
 document.getElementById("genBtn").addEventListener("click", async () => {
@@ -104,7 +101,7 @@ document.getElementById("genBtn").addEventListener("click", async () => {
 
     const payload = { id, name, batch, timestamp: Date.now() };
 
-    // 1️⃣ SIGN PAYLOAD ON BACKEND
+    // 1️⃣ CALL BACKEND TO SIGN
     const signRes = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,17 +116,32 @@ document.getElementById("genBtn").addEventListener("click", async () => {
         return;
     }
 
-    // Build verify URL
+    // 2️⃣ BUILD VERIFY URL
     const verifyURL = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(signedToken)}`;
 
-    // 2️⃣ GENERATE QR USING GOOGLE CHARTS API
-    const qrSrc = `https://chart.googleapis.com/chart?cht=qr&chs=400x400&chl=${encodeURIComponent(verifyURL)}`;
+    // 3️⃣ CLEAR OLD QR
+    const qrBox = document.getElementById("qrContainer");
+    qrBox.innerHTML = "";
 
-    document.getElementById("qrResult").innerHTML = `
-        <h3>Scan to Verify</h3>
-        <img src="${qrSrc}">
-        <p style="word-break: break-all; font-size: 12px; opacity: 0.6">${verifyURL}</p>
-    `;
+    // 4️⃣ REAL QR GENERATOR (works 100%)
+    const qr = new QRCodeStyling({
+        width: 300,
+        height: 300,
+        type: "svg",
+        data: verifyURL,
+        dotsOptions: {
+            color: "#00b3ff",
+            type: "rounded"
+        },
+        backgroundOptions: {
+            color: "#0d0f17"
+        }
+    });
+
+    qr.append(qrBox);
+
+    // OPTIONAL: Show URL under QR (small text)
+    qrBox.innerHTML += `<p style="font-size:12px; opacity:0.6; word-break:break-all">${verifyURL}</p>`;
 });
 </script>
 
