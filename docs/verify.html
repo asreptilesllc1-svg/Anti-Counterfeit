@@ -7,124 +7,97 @@
 
 <style>
     body {
-        font-family: "Inter", sans-serif;
         margin: 0;
-        padding: 0;
-        background: #0a0f14;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background: radial-gradient(circle at top, #0d0f1a, #03040a);
         color: #e6e6e6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
         text-align: center;
     }
 
-    .container {
-        width: 92%;
-        max-width: 420px;
-        background: #111821;
-        border-radius: 16px;
-        padding: 30px;
-        box-shadow: 0 0 25px rgba(0,0,0,0.6);
-        border: 1px solid #1d2b38;
-        animation: fadeIn 0.5s ease;
-    }
-
-    .logo {
-        width: 120px;
-        margin: 0 auto 10px;
-    }
-
     h1 {
-        font-weight: 600;
-        color: #4cc3ff;
-        margin-bottom: 20px;
+        margin-top: 35px;
+        font-size: 40px;
+        color: #00c8ff;
+        text-shadow: 0 0 20px #0099dd;
     }
 
-    #statusText {
-        margin-top: 20px;
-        font-size: 1.2rem;
-        color: #9fbccd;
+    .status-box {
+        margin: 40px auto;
+        padding: 30px;
+        max-width: 550px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.15);
     }
 
-    .item-box {
+    .loading-text {
+        font-size: 26px;
+        opacity: 0.8;
         margin-top: 25px;
-        padding: 18px;
-        border-radius: 14px;
-        background: #0f141a;
-        border: 1px solid #1e2a34;
-        display: none;
+        animation: blink 1.4s infinite;
     }
 
-    .item-box p {
-        margin: 6px 0;
-        font-size: 1rem;
-        color: #d0e7f3;
+    @keyframes blink {
+        0% { opacity: .3; }
+        50% { opacity: 1; }
+        100% { opacity: .3; }
     }
 
-    /* 🔰 Rotating Shield Animation */
-    .shield {
-        width: 130px;
-        height: 130px;
-        margin: 15px auto;
-        background-image: url("shield.png"); /* ← replace with your shield image */
-        background-size: contain;
-        background-repeat: no-repeat;
-        animation: rotate 3s linear infinite;
-        display: none;
+    .result {
+        font-size: 32px;
+        font-weight: bold;
+        margin-top: 25px;
     }
 
-    @keyframes rotate {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-
-    /* Fade-in animation */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .success {
-        color: #4cff9d;
-        font-weight: 600;
-        font-size: 1.4rem;
+    .auth {
+        color: #00ffcc;
+        text-shadow: 0 0 15px #00ffcc;
     }
 
     .fail {
-        color: #ff5f5f;
-        font-weight: 600;
-        font-size: 1.3rem;
+        color: #ff4d4d;
+        text-shadow: 0 0 15px #ff0000;
+    }
+
+    .data-box {
+        margin-top: 30px;
+        text-align: left;
+        padding: 20px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 14px;
+        line-height: 1.7;
+    }
+
+    .back-btn {
+        margin-top: 30px;
+        display: inline-block;
+        font-size: 20px;
+        color: #00c8ff;
+        text-decoration: none;
     }
 </style>
 </head>
 
 <body>
 
-<div class="container">
-    <img src="logo.png" class="logo" alt="Brand Logo">
+<h1>Product Verification</h1>
 
-    <h1>Authenticity Check</h1>
-
-    <div id="shield" class="shield"></div>
-
-    <div id="statusText">Checking token...</div>
-
-    <div id="itemDetails" class="item-box"></div>
+<div class="status-box">
+    <div id="loading" class="loading-text">Checking token...</div>
+    <div id="result" class="result"></div>
+    <div id="data" class="data-box" style="display:none;"></div>
 </div>
 
+<a class="back-btn" href="index.html">← Back to Home</a>
+
 <script>
-async function verifyToken() {
+async function runVerification() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("p");
 
-    const statusText = document.getElementById("statusText");
-    const shield = document.getElementById("shield");
-    const itemBox = document.getElementById("itemDetails");
-
     if (!token) {
-        statusText.textContent = "No token provided.";
-        statusText.classList.add("fail");
+        document.getElementById("loading").innerText = "No token provided.";
         return;
     }
 
@@ -132,37 +105,37 @@ async function verifyToken() {
         const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ signedToken: token }),
+            body: JSON.stringify({ signedToken: token })
         });
 
         const data = await res.json();
+        document.getElementById("loading").style.display = "none";
 
         if (data.valid) {
-            shield.style.display = "block";
-            statusText.textContent = "✔ Authentic Product";
-            statusText.classList.add("success");
+            document.getElementById("result").innerHTML = "✔ AUTHENTIC";
+            document.getElementById("result").classList.add("auth");
 
-            itemBox.style.display = "block";
-            itemBox.innerHTML = `
-                <p><strong>ID:</strong> ${data.payload.id}</p>
-                <p><strong>Name:</strong> ${data.payload.name}</p>
-                <p><strong>Batch:</strong> ${data.payload.batch}</p>
-                <p><strong>Timestamp:</strong> ${new Date(data.payload.timestamp).toLocaleString()}</p>
+            const info = `
+                <b>Product ID:</b> ${data.payload.id}<br>
+                <b>Name:</b> ${data.payload.name}<br>
+                <b>Batch:</b> ${data.payload.batch}<br>
+                <b>Timestamp:</b> ${new Date(data.payload.timestamp).toLocaleString()}
             `;
-        } else {
-            statusText.textContent = "✖ Verification Failed";
-            statusText.classList.add("fail");
-        }
 
-    } catch (err) {
-        statusText.textContent = "Server Error";
-        statusText.classList.add("fail");
+            document.getElementById("data").innerHTML = info;
+            document.getElementById("data").style.display = "block";
+        } else {
+            document.getElementById("result").innerHTML = "✘ NOT AUTHENTIC";
+            document.getElementById("result").classList.add("fail");
+        }
+    }
+    catch (err) {
+        document.getElementById("loading").innerText = "Error verifying token.";
     }
 }
 
-verifyToken();
+runVerification();
 </script>
 
 </body>
 </html>
-

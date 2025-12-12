@@ -1,98 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anti-Counterfeit Platform</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Product Authentication</title>
 
-  <style>
+<!-- SHARED DARK FUTURISTIC THEME -->
+<style>
     body {
-      margin: 0;
-      background: radial-gradient(circle at center, #0a0f1c, #000000 80%);
-      font-family: "Segoe UI", sans-serif;
-      color: #e0e0ff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      text-align: center;
-      padding: 20px;
+        margin: 0;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        background: radial-gradient(circle at top, #0d0f1a, #03040a);
+        color: #e6e6e6;
+        text-align: center;
     }
 
     h1 {
-      font-size: 40px;
-      margin-bottom: 10px;
-      background: linear-gradient(90deg, #7df9ff, #4c8fff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: 1.5px;
-      animation: fadeIn 0.8s ease-out;
+        margin-top: 40px;
+        font-size: 42px;
+        color: #00c8ff;
+        text-shadow: 0 0 20px #00aaff;
+        animation: fadeIn 1s ease-out;
     }
 
-    .subtitle {
-      opacity: 0.65;
-      font-size: 16px;
-      margin-bottom: 40px;
-      animation: fadeIn 1.1s ease-out;
+    .subtext {
+        font-size: 18px;
+        opacity: 0.8;
+        margin-bottom: 40px;
     }
 
-    .button-container {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      width: 100%;
-      max-width: 320px;
-      animation: fadeIn 1.4s ease-out;
+    .container {
+        max-width: 650px;
+        margin: 40px auto;
+        padding: 40px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.05);
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.15);
+        backdrop-filter: blur(8px);
+        animation: fadeInUp 1s ease;
     }
 
-    a.button {
-      display: block;
-      padding: 15px;
-      font-size: 18px;
-      text-decoration: none;
-      color: #dff3ff;
-      background: linear-gradient(90deg, #009dff, #005eff);
-      border-radius: 10px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      transition: 0.25s ease;
-      border: 1px solid rgba(120, 170, 255, 0.25);
-      box-shadow: 0 0 12px rgba(0, 150, 255, 0.3);
+    button {
+        background: linear-gradient(135deg, #00c8ff, #0066ff);
+        border: none;
+        padding: 18px 40px;
+        margin: 15px;
+        font-size: 22px;
+        border-radius: 14px;
+        color: white;
+        cursor: pointer;
+        transition: 0.3s;
+        box-shadow: 0 0 15px rgba(0, 200, 255, 0.4);
+        width: 80%;
+        max-width: 350px;
     }
 
-    a.button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 0 20px rgba(0, 150, 255, 0.55);
+    button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.8);
     }
 
-    /* Logo styling (optional if you add your logo later) */
     .logo {
-      width: 115px;
-      height: 115px;
-      margin-bottom: 25px;
-      animation: fadeIn 0.6s ease-out;
+        margin-top: 40px;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        object-fit: contain;
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.5);
+        animation: glowPulse 3s infinite ease-in-out;
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+        from { opacity: 0; }
+        to   { opacity: 1; }
     }
-  </style>
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes glowPulse {
+        0%   { box-shadow: 0 0 20px rgba(0, 200, 255, 0.4); }
+        50%  { box-shadow: 0 0 40px rgba(0, 200, 255, 0.8); }
+        100% { box-shadow: 0 0 20px rgba(0, 200, 255, 0.4); }
+    }
+</style>
 </head>
 
 <body>
 
-  <!-- Optional Logo (uncomment + replace logo.png if needed) -->
-  <!-- <img src="logo.png" class="logo" alt="Brand Logo"> -->
+    <img src="logo.png" class="logo" alt="Brand Logo" />
 
-  <h1>Product Authentication</h1>
-  <div class="subtitle">Blockchain-backed security • Instant verification</div>
+    <h1>Product Authentication</h1>
+    <p class="subtext">Verify authenticity or generate secure product QR codes.</p>
 
-  <div class="button-container">
-    <a class="button" href="generate.html">Generate QR Code</a>
-    <a class="button" href="verify.html">Verify Product</a>
-  </div>
+    <div class="container">
+        <button onclick="location.href='generate.html'">Generate QR Code</button>
+        <button onclick="location.href='verify.html'">Verify Product</button>
+        <button onclick="location.href='manual-verify.html'">Manual Verification</button>
+    </div>
 
 </body>
 </html>

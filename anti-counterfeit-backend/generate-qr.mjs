@@ -1,19 +1,42 @@
+// generate-qr.js
+import fs from "fs";
+import path from "path";
+import jwt from "jsonwebtoken";
 import QRCode from "qrcode";
 
-// 👇 After running generate-token.js, copy the printed token into this variable
-const signedToken = "PASTE_SIGNED_TOKEN_HERE";
+// === Locate backend directory ===
+const __dirname = path.resolve();
 
-const verifyUrl = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(
-  signedToken
-)}`;
+// === Load private key (env var preferred) ===
+const privateKey =
+  process.env.PRIVATE_KEY ||
+  fs.readFileSync(path.join(__dirname, "private.pem"), "utf8");
 
-QRCode.toFile("product-qr.png", verifyUrl, { width: 1200 })
-  .then(() => {
+// === EDIT THIS PAYLOAD TO DEFINE YOUR PRODUCT ===
+const payload = {
+  id: "TEST-001",
+  name: "Phone Test",
+  batch: "B1",
+  timestamp: Date.now(),
+};
+
+// === Create signed JWT token ===
+const token = jwt.sign(
+  { data: payload },
+  privateKey,
+  { algorithm: "RS256" }
+);
+
+// Display token in console
+console.log("\nSIGNED TOKEN:\n" + token + "\n");
+
+// === Save QR code containing ONLY THE TOKEN ===
+QRCode.toFile(
+  "product-qr.png",
+  token,
+  { width: 1200 },
+  (err) => {
+    if (err) throw err;
     console.log("✅ QR code saved as product-qr.png");
-    console.log("URL inside QR:");
-    console.log(verifyUrl);
-  })
-  .catch((err) => {
-    console.error("QR generation error:", err);
-  });
-
+  }
+);

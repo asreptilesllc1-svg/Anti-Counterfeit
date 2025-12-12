@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Manual Token Verification</title>
+
+<style>
+    body {
+        margin: 0;
+        background: radial-gradient(circle at top, #0d0f1a, #03040a);
+        color: white;
+        text-align: center;
+        font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    h1 {
+        margin-top: 35px;
+        font-size: 42px;
+        color: #00c8ff;
+        text-shadow: 0 0 20px #0099dd;
+    }
+
+    .container {
+        margin: 30px auto;
+        max-width: 650px;
+        padding: 30px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 16px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.15);
+    }
+
+    textarea {
+        width: 95%;
+        height: 140px;
+        padding: 15px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid #0099dd;
+        color: #e6e6e6;
+        border-radius: 14px;
+        font-size: 15px;
+        resize: none;
+        outline: none;
+    }
+
+    button {
+        background: linear-gradient(135deg, #00c8ff, #0066ff);
+        color: white;
+        padding: 14px 30px;
+        margin-top: 20px;
+        font-size: 20px;
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 0 15px rgba(0, 200, 255, 0.4);
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0 25px rgba(0, 200, 255, 0.8);
+    }
+
+    .result-box {
+        margin-top: 30px;
+        padding: 20px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.04);
+        display: none;
+        text-align: left;
+    }
+
+    .valid {
+        color: #00ffcc;
+        font-size: 26px;
+        margin-bottom: 12px;
+    }
+
+    .invalid {
+        color: #ff4d4d;
+        font-size: 26px;
+        margin-bottom: 12px;
+    }
+
+    .back-btn {
+        display: inline-block;
+        margin-top: 35px;
+        text-decoration: none;
+        color: #00c8ff;
+        font-size: 20px;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Manual Token Verification</h1>
+
+<div class="container">
+    <textarea id="tokenInput" placeholder="Paste signed token here..."></textarea>
+    <button onclick="verifyToken()">Verify Token</button>
+
+    <div id="results" class="result-box"></div>
+</div>
+
+<a class="back-btn" href="index.html">← Back to Home</a>
+
+<script>
+async function verifyToken() {
+    const token = document.getElementById("tokenInput").value.trim();
+
+    if (!token) {
+        alert("Please paste a token.");
+        return;
+    }
+
+    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedToken: token })
+    });
+
+    const data = await res.json();
+    const box = document.getElementById("results");
+    box.style.display = "block";
+
+    if (data.valid) {
+        box.innerHTML = `
+            <div class="valid">✔ AUTHENTIC</div>
+            <b>Product ID:</b> ${data.payload.id}<br>
+            <b>Name:</b> ${data.payload.name}<br>
+            <b>Batch:</b> ${data.payload.batch}<br>
+            <b>Timestamp:</b> ${new Date(data.payload.timestamp).toLocaleString()}
+        `;
+    } else {
+        box.innerHTML = `<div class="invalid">✘ NOT AUTHENTIC</div>`;
+    }
+}
+</script>
+
+</body>
+</html>
