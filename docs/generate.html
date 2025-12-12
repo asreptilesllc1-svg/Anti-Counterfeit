@@ -1,212 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Generate QR Code | Anti-Counterfeit</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Generate Product QR Code</title>
 
-  <style>
+<style>
     body {
-      margin: 0;
-      background: radial-gradient(circle at center, #0a0f1c, #000000 80%);
-      font-family: "Segoe UI", sans-serif;
-      color: #e0e0ff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
+        margin: 0;
+        padding: 0;
+        background: #0d0f17;
+        font-family: "Segoe UI", sans-serif;
+        color: #e0e0e0;
+        text-align: center;
     }
 
     h1 {
-      font-size: 32px;
-      margin-bottom: 10px;
-      background: linear-gradient(90deg, #7df9ff, #4c8fff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: 1px;
+        margin-top: 20px;
+        font-size: 28px;
+        color: #66c0ff;
+        text-shadow: 0 0 12px #2196f3;
     }
 
-    .subtitle {
-      font-size: 14px;
-      opacity: 0.6;
-      margin-bottom: 25px;
-    }
-
-    .generator-box {
-      width: 100%;
-      max-width: 450px;
-      background: rgba(20, 30, 50, 0.55);
-      border: 1px solid rgba(120, 170, 255, 0.25);
-      border-radius: 14px;
-      padding: 25px;
-      box-shadow: 0 0 25px rgba(0, 150, 255, 0.15);
-      backdrop-filter: blur(10px);
-      animation: fadeIn 0.6s ease-out;
-    }
-
-    label {
-      display: block;
-      margin-top: 15px;
-      font-size: 14px;
-      opacity: 0.85;
+    .card {
+        margin: 40px auto;
+        background: #131722;
+        padding: 30px;
+        width: 90%;
+        max-width: 420px;
+        border-radius: 14px;
+        box-shadow: 0 0 18px rgba(0, 140, 255, 0.25);
+        border: 1px solid #1e2637;
     }
 
     input {
-      width: 100%;
-      margin-top: 5px;
-      padding: 12px;
-      background: #0c1220;
-      border: 1px solid #233860;
-      border-radius: 8px;
-      color: #cfe6ff;
-      font-size: 15px;
-      outline: none;
-      transition: 0.2s;
-    }
-
-    input:focus {
-      border-color: #6fcaff;
-      box-shadow: 0 0 8px rgba(100, 200, 255, 0.35);
+        width: 90%;
+        padding: 12px;
+        margin-top: 12px;
+        border-radius: 10px;
+        border: none;
+        font-size: 16px;
+        background: #1b2030;
+        color: #eee;
+        outline: none;
     }
 
     button {
-      width: 100%;
-      margin-top: 25px;
-      padding: 14px;
-      background: linear-gradient(90deg, #009dff, #005eff);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      font-size: 17px;
-      cursor: pointer;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      transition: 0.2s;
+        margin-top: 20px;
+        width: 92%;
+        padding: 14px;
+        font-size: 18px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        background: #007bff;
+        color: white;
+        font-weight: bold;
+        box-shadow: 0 0 14px rgba(0, 140, 255, 0.4);
     }
 
     button:hover {
-      box-shadow: 0 0 15px rgba(0, 150, 255, 0.5);
-      transform: translateY(-2px);
+        background: #0a84ff;
     }
 
-    .qr-box {
-      margin-top: 30px;
-      padding: 18px;
-      background: rgba(0, 20, 40, 0.6);
-      border-radius: 14px;
-      border: 1px solid rgba(100, 160, 255, 0.35);
-      box-shadow: 0 0 20px rgba(0, 150, 255, 0.3);
-      text-align: center;
-      display: none;
-      animation: fadeIn 0.8s ease-out;
+    #qrResult {
+        margin-top: 25px;
+        padding: 20px;
+        background: #10141f;
+        border-radius: 10px;
     }
 
-    #qrImage {
-      width: 240px;
-      height: 240px;
-      image-rendering: crisp-edges;
-      margin-bottom: 15px;
+    #qrResult img {
+        width: 230px;
+        margin-top: 10px;
+        filter: drop-shadow(0 0 10px rgba(0, 140, 255, 0.55));
     }
-
-    .copy-btn {
-      margin-top: 10px;
-      padding: 10px 15px;
-      background: #0d1b2f;
-      border: 1px solid #3d6fbf;
-      border-radius: 6px;
-      color: #92c7ff;
-      font-size: 14px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .copy-btn:hover {
-      background: #173257;
-      border-color: #6cbcff;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+</style>
 </head>
 
 <body>
-  <h1>Generate QR Code</h1>
-  <div class="subtitle">Create a blockchain-backed digital authenticity tag</div>
+    <h1>Generate Authentic QR Code</h1>
 
-  <div class="generator-box">
-    <label>Product ID</label>
-    <input id="pid" placeholder="e.g., SN-00123" />
+    <div class="card">
+        <input id="prodId" placeholder="Product ID (e.g., TEST-001)" />
+        <input id="prodName" placeholder="Product Name" />
+        <input id="prodBatch" placeholder="Batch #" />
 
-    <label>Product Name</label>
-    <input id="pname" placeholder="e.g., Limited Edition Watch" />
+        <button id="genBtn">Generate QR Code</button>
 
-    <label>Batch #</label>
-    <input id="batch" placeholder="e.g., B12" />
-
-    <button onclick="generateQR()">Generate QR Code</button>
-  </div>
-
-  <div id="qrSection" class="qr-box">
-    <img id="qrImage" src="" alt="QR Code" />
-    <div>
-      <button class="copy-btn" onclick="copyLink()">Copy Verification Link</button>
+        <div id="qrResult"></div>
     </div>
-  </div>
 
-  <script>
-    async function generateQR() {
-      const id = document.getElementById("pid").value.trim();
-      const name = document.getElementById("pname").value.trim();
-      const batch = document.getElementById("batch").value.trim();
+<script>
+document.getElementById("genBtn").addEventListener("click", async () => {
+    const id = document.getElementById("prodId").value.trim();
+    const name = document.getElementById("prodName").value.trim();
+    const batch = document.getElementById("prodBatch").value.trim();
 
-      if (!id || !name || !batch) {
-        alert("Please fill in all fields.");
+    if (!id || !name || !batch) {
+        alert("Please fill out all fields.");
         return;
-      }
-
-      const payload = { id, name, batch, timestamp: Date.now() };
-
-      const res = await fetch(
-        "https://anti-counterfeit-backend-new.onrender.com/sign",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      const data = await res.json();
-      const token = data.signedToken;
-
-      if (!token) {
-        alert("Error generating signed token.");
-        return;
-      }
-
-      const verifyURL =
-        `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(token)}`;
-
-      // Generate QR via Google Charts API (clean + reliable)
-      const qrURL =
-        `https://chart.googleapis.com/chart?chs=400x400&cht=qr&chl=${encodeURIComponent(verifyURL)}`;
-
-      document.getElementById("qrImage").src = qrURL;
-
-      document.getElementById("qrSection").style.display = "block";
-
-      // Save last link
-      window.lastVerifyURL = verifyURL;
     }
 
-    function copyLink() {
-      if (!window.lastVerifyURL) return;
-      navigator.clipboard.writeText(window.lastVerifyURL);
-      alert("Verification link copied!");
+    const payload = { id, name, batch, timestamp: Date.now() };
+
+    // 1️⃣ SIGN PAYLOAD ON BACKEND
+    const signRes = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await signRes.json();
+    const signedToken = data.signedToken;
+
+    if (!signedToken) {
+        alert("Error generating token.");
+        return;
     }
-  </script>
+
+    // Build verify URL
+    const verifyURL = `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(signedToken)}`;
+
+    // 2️⃣ GENERATE QR USING GOOGLE CHARTS API
+    const qrSrc = `https://chart.googleapis.com/chart?cht=qr&chs=400x400&chl=${encodeURIComponent(verifyURL)}`;
+
+    document.getElementById("qrResult").innerHTML = `
+        <h3>Scan to Verify</h3>
+        <img src="${qrSrc}">
+        <p style="word-break: break-all; font-size: 12px; opacity: 0.6">${verifyURL}</p>
+    `;
+});
+</script>
 
 </body>
 </html>
+
+
