@@ -1,182 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Generate Product QR</title>
+  <meta charset="UTF-8" />
+  <title>Generate QR Code</title>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <!-- QR Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
-<style>
+  <style>
     body {
-        margin: 0;
-        font-family: 'Segoe UI', Arial, sans-serif;
-        background: radial-gradient(circle at top, #0d0f1a, #03040a);
-        color: #e6e6e6;
-        text-align: center;
+      background: #0b0f1a;
+      color: #ffffff;
+      font-family: Inter, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: #11162a;
+      padding: 30px;
+      border-radius: 16px;
+      width: 420px;
+      box-shadow: 0 0 40px rgba(0,255,255,0.15);
+      text-align: center;
     }
 
     h1 {
-        margin-top: 35px;
-        font-size: 42px;
-        color: #00c8ff;
-        text-shadow: 0 0 20px #0099dd;
+      margin-bottom: 10px;
     }
 
-    .container {
-        margin: 40px auto;
-        max-width: 600px;
-        padding: 30px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 18px;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 0 30px rgba(0, 200, 255, 0.18);
+    p {
+      color: #aaa;
+      font-size: 14px;
     }
 
-    input {
-        width: 90%;
-        padding: 14px;
-        margin: 12px 0;
-        border-radius: 12px;
-        border: 1px solid #0099dd;
-        background: rgba(255,255,255,0.08);
-        color: white;
-        font-size: 16px;
-        outline: none;
+    textarea {
+      width: 100%;
+      height: 100px;
+      margin-top: 15px;
+      background: #0d1222;
+      color: #fff;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px;
+      resize: none;
     }
 
     button {
-        margin-top: 25px;
-        padding: 16px 40px;
-        font-size: 20px;
-        border-radius: 14px;
-        border: none;
-        cursor: pointer;
-        background: linear-gradient(135deg, #00c8ff, #0066ff);
-        color: white;
-        box-shadow: 0 0 18px rgba(0,200,255,0.45);
-        transition: 0.3s;
+      margin-top: 15px;
+      width: 100%;
+      padding: 12px;
+      background: #00f0ff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #000;
     }
 
     button:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0 30px rgba(0,200,255,0.9);
+      opacity: 0.9;
     }
 
-    #qr-container {
-        margin-top: 35px;
+    #qr {
+      margin-top: 25px;
     }
 
-    #qrcode canvas {
-        margin-top: 20px;
-        background: white;
-        padding: 14px;
-        border-radius: 14px;
+    #download {
+      display: none;
+      margin-top: 15px;
+      background: #1eff8a;
     }
-
-    .download-btn {
-        display: block;
-        margin-top: 20px;
-        font-size: 20px;
-        color: #00c8ff;
-        text-decoration: none;
-    }
-
-    .back-btn {
-        display: inline-block;
-        margin-top: 40px;
-        font-size: 20px;
-        color: #00c8ff;
-        text-decoration: none;
-    }
-</style>
+  </style>
 </head>
-
 <body>
 
-<h1>Generate Product QR</h1>
+  <div class="card">
+    <h1>QR Generator</h1>
+    <p>Paste ANY text or link below</p>
 
-<div class="container">
-    <input id="productId" placeholder="Product ID (ex: TEST-001)" />
-    <input id="productName" placeholder="Product Name" />
-    <input id="batch" placeholder="Batch Number" />
+    <textarea id="qrText" placeholder="Paste verification link or token here..."></textarea>
 
     <button onclick="generateQR()">Generate QR Code</button>
 
-    <div id="qr-container">
-        <div id="qrcode"></div>
-    </div>
-</div>
+    <div id="qr"></div>
 
-<a class="back-btn" href="index.html">← Back to Home</a>
+    <button id="download" onclick="downloadQR()">Download QR</button>
+  </div>
 
-<script>
-async function generateQR() {
-    const id = document.getElementById("productId").value.trim();
-    const name = document.getElementById("productName").value.trim();
-    const batch = document.getElementById("batch").value.trim();
+  <script>
+    function generateQR() {
+      const text = document.getElementById("qrText").value.trim();
+      const qrDiv = document.getElementById("qr");
+      const downloadBtn = document.getElementById("download");
 
-    if (!id || !name || !batch) {
-        alert("Please fill out all fields.");
+      qrDiv.innerHTML = "";
+      downloadBtn.style.display = "none";
+
+      if (!text) {
+        alert("Please enter text to generate QR code.");
         return;
-    }
+      }
 
-    // Ask backend to sign payload
-    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            id,
-            name,
-            batch,
-            timestamp: Date.now()
-        })
-    });
-
-    const data = await res.json();
-    if (!data.signedToken) {
-        alert("Failed to generate signed token.");
-        return;
-    }
-
-    const verifyURL =
-        "https://verify.myproductauth.com/verify.html?p=" +
-        encodeURIComponent(data.signedToken);
-
-    // Clear previous QR
-    document.getElementById("qrcode").innerHTML = "";
-    document.querySelectorAll(".download-btn").forEach(e => e.remove());
-
-    // Generate QR (BLACK & WHITE)
-    QRCode.toCanvas(
-        verifyURL,
-        {
-            width: 320,
-            color: {
-                dark: "#000000",
-                light: "#ffffff"
-            }
-        },
-        function (err, canvas) {
-            if (err) {
-                alert("QR generation failed.");
-                return;
-            }
-
-            document.getElementById("qrcode").appendChild(canvas);
-
-            // Download button
-            const download = document.createElement("a");
-            download.href = canvas.toDataURL("image/png");
-            download.download = `${id}-qr.png`;
-            download.innerText = "Download QR Code";
-            download.className = "download-btn";
-
-            document.getElementById("qr-container").appendChild(download);
+      QRCode.toCanvas(text, {
+        width: 260,
+        color: {
+          dark: "#000000",
+          light: "#ffffff"
         }
-    );
-}
-</script>
+      }, function (err, canvas) {
+        if (err) {
+          alert("QR generation failed.");
+          console.error(err);
+          return;
+        }
+
+        qrDiv.appendChild(canvas);
+        downloadBtn.style.display = "block";
+      });
+    }
+
+    function downloadQR() {
+      const canvas = document.querySelector("#qr canvas");
+      if (!canvas) return;
+
+      const link = document.createElement("a");
+      link.download = "qr-code.png";
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  </script>
 
 </body>
 </html>
+
