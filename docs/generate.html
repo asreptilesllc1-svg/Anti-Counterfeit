@@ -5,8 +5,11 @@
   <title>Generate Product QR | MyProductAuth</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- QRCode library -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <!-- ✅ QRCode library (locked version, reliable CDN) -->
+  <script
+    src="https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js"
+    defer
+  ></script>
 
   <style>
     :root {
@@ -92,10 +95,6 @@
       font-size: 0.95rem;
     }
 
-    button:hover {
-      opacity: 0.9;
-    }
-
     .status {
       text-align: center;
       margin-top: 14px;
@@ -126,17 +125,13 @@
       color: var(--accent);
       border: 1px solid var(--accent);
     }
-
-    .download-btn:hover {
-      background: rgba(0, 229, 255, 0.15);
-    }
   </style>
 </head>
 
 <body>
   <div class="container">
     <h1>QR Code Generator</h1>
-    <p class="subtitle">Generate a secure, verifiable product authenticity QR</p>
+    <p class="subtitle">Generate a secure, verifiable product QR</p>
 
     <label>Product ID</label>
     <input id="id" placeholder="SKU-001" />
@@ -147,7 +142,7 @@
     <label>Batch / Lot</label>
     <input id="batch" placeholder="BATCH-A1" />
 
-    <button onclick="generateQR()">Generate QR Code</button>
+    <button id="generateBtn">Generate QR Code</button>
 
     <div id="status" class="status"></div>
 
@@ -158,14 +153,27 @@
   </div>
 
   <script>
-    const SIGN_ENDPOINT = "https://anti-counterfeit-backend-new.onrender.com/sign";
-    const VERIFY_BASE = "https://verify.myproductauth.com/verify.html?p=";
+    const SIGN_ENDPOINT =
+      "https://anti-counterfeit-backend-new.onrender.com/sign";
+    const VERIFY_BASE =
+      "https://verify.myproductauth.com/verify.html?p=";
+
+    document.getElementById("generateBtn").addEventListener("click", generateQR);
 
     async function generateQR() {
+      const status = document.getElementById("status");
+
+      // ✅ HARD FAIL if library didn’t load
+      if (typeof window.QRCode === "undefined") {
+        status.textContent =
+          "❌ QR library failed to load. Refresh and try again.";
+        status.className = "status error";
+        return;
+      }
+
       const id = document.getElementById("id").value.trim();
       const name = document.getElementById("name").value.trim();
       const batch = document.getElementById("batch").value.trim();
-      const status = document.getElementById("status");
 
       if (!id || !name || !batch) {
         status.textContent = "❌ Please fill in all fields";
@@ -184,21 +192,17 @@
         });
 
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Backend ${res.status}: ${text}`);
+          throw new Error("Backend error: " + res.status);
         }
 
-        const data = await res.json();
+        const { signedToken } = await res.json();
+        if (!signedToken) throw new Error("No token returned");
 
-        if (!data.signedToken) {
-          throw new Error("No signedToken returned");
-        }
+        const url = VERIFY_BASE + encodeURIComponent(signedToken);
 
-        const verifyURL = VERIFY_BASE + encodeURIComponent(data.signedToken);
-
-        await QRCode.toCanvas(
+        await window.QRCode.toCanvas(
           document.getElementById("qrCanvas"),
-          verifyURL,
+          url,
           {
             width: 260,
             margin: 1,
@@ -207,7 +211,7 @@
         );
 
         document.getElementById("qrWrapper").style.display = "flex";
-        status.textContent = "✔ QR Code generated successfully";
+        status.textContent = "✔ QR Code generated";
 
       } catch (err) {
         console.error(err);
@@ -226,3 +230,4 @@
   </script>
 </body>
 </html>
+
