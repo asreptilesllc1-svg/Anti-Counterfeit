@@ -1,130 +1,78 @@
 import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
-import pkg from "pg";
-
-const { Pool } = pkg;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ==============================
-// 🔐 ENVIRONMENT VARIABLES
-// ==============================
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const PUBLIC_KEY = process.env.PUBLIC_KEY;
-const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!PUBLIC_KEY || !DATABASE_URL) {
-  console.error("❌ Missing PUBLIC_KEY or DATABASE_URL in environment variables");
+if (!PRIVATE_KEY || !PUBLIC_KEY) {
+  console.error("❌ PRIVATE_KEY or PUBLIC_KEY missing in environment variables");
 }
 
-// ==============================
-// 🗄️ DATABASE CONNECTION
-// ==============================
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-// ==============================
-// 🩺 HEALTH CHECK
-// ==============================
+// Health check
 app.get("/", (req, res) => {
-  res.json({ status: "ok", service: "Anti-Counterfeit Backend" });
+  res.json({ status: "ok", message: "Anti-counterfeit backend running" });
 });
 
-// ==============================
-// ✅ VERIFY + TRACK SCAN
-// ==============================
-app.post("/verify-token", async (req, res) => {
-  const { signedToken } = req.body || {};
+
+// 🔐 SIGN ENDPOINT (THIS WAS MISSING)
+app.post("/sign", (req, res) => {
+  try {
+    const payload = {
+      id: req.body.id,
+      name: req.body.name,
+      batch: req.body.batch,
+      timestamp: Date.now(),
+    };
+
+    const signedToken = jwt.sign(
+      { data: payload },
+      PRIVATE_KEY,
+      { algorithm: "RS256" }
+    );
+
+    res.json({ signedToken });
+  } catch (err) {
+    console.error("Sign error:", err);
+    res.status(400).json({ error: "Signing failed" });
+  }
+});
+
+
+// ✅ VERIFY ENDPOINT
+app.post("/verify-token", (req, res) => {
+  const { signedToken } = req.body;
 
   if (!signedToken) {
     return res.status(400).json({
       valid: false,
-      error: "No token provided",
+      error: "signedToken missing",
     });
   }
 
-  let decoded;
   try {
-    decoded = jwt.verify(signedToken, PUBLIC_KEY, {
+    const decoded = jwt.verify(signedToken, PUBLIC_KEY, {
       algorithms: ["RS256"],
     });
-  } catch (err) {
-    console.error("JWT verify failed:", err.message);
-    return res.status(400).json({
-      valid: false,
-      error: "Invalid or tampered token",
-    });
-  }
 
-  const payload = decoded.data;
-  const productId = payload.id;
-
-  try {
-    // ------------------------------
-    // 1️⃣ UPSERT PRODUCT
-    // ------------------------------
-    await pool.query(
-      `
-      INSERT INTO products (product_id, metadata)
-      VALUES ($1, $2)
-      ON CONFLICT (product_id) DO NOTHING
-      `,
-      [productId, payload]
-    );
-
-    // ------------------------------
-    // 2️⃣ LOG SCAN
-    // ------------------------------
-    await pool.query(
-      `
-      INSERT INTO scans (product_id, scanned_at)
-      VALUES ($1, NOW())
-      `,
-      [productId]
-    );
-
-    // ------------------------------
-    // 3️⃣ COUNT SCANS
-    // ------------------------------
-    const result = await pool.query(
-      `
-      SELECT COUNT(*) FROM scans
-      WHERE product_id = $1
-      `,
-      [productId]
-    );
-
-    const scanCount = parseInt(result.rows[0].count, 10);
-
-    // ------------------------------
-    // 4️⃣ RESPOND
-    // ------------------------------
     res.json({
       valid: true,
-      status:
-        scanCount === 1
-          ? "AUTHENTIC"
-          : "DUPLICATE SCAN DETECTED",
-      scanCount,
-      product: payload,
+      payload: decoded.data,
     });
-  } catch (dbErr) {
-    console.error("Database error:", dbErr);
-    res.status(500).json({
+  } catch (err) {
+    console.error("Verify error:", err);
+    res.status(400).json({
       valid: false,
-      error: "Database failure",
+      error: "Invalid token",
     });
   }
 });
 
-// ==============================
-// 🚀 START SERVER
-// ==============================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`);
+  console.log("🚀 Backend running on port " + PORT);
 });
