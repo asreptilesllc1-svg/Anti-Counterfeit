@@ -2,189 +2,227 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Generate Product QR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Generate Product QR | MyProductAuth</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- QR library -->
+  <!-- QRCode library -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
   <style>
+    :root {
+      --bg: #0b0f1a;
+      --panel: #121a2f;
+      --accent: #00e5ff;
+      --text: #e6f1ff;
+      --muted: #7a8bbd;
+      --danger: #ff4d4d;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: Inter, system-ui, sans-serif;
+    }
+
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: radial-gradient(circle at top, #0b1220, #020617);
-      color: #e5e7eb;
       min-height: 100vh;
+      background: radial-gradient(circle at top, #121a2f, #070b14);
+      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .card {
+    .container {
       width: 100%;
       max-width: 420px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-      text-align: center;
+      background: linear-gradient(180deg, #121a2f, #0b1020);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: 1.5rem;
-      letter-spacing: 0.5px;
+      margin-top: 0;
+      text-align: center;
+      font-size: 1.6rem;
+      color: var(--accent);
     }
 
-    p {
+    p.subtitle {
+      text-align: center;
+      color: var(--muted);
+      margin-bottom: 22px;
       font-size: 0.9rem;
-      color: #94a3b8;
-      margin-bottom: 20px;
+    }
+
+    label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 6px;
     }
 
     input {
       width: 100%;
       padding: 12px;
-      margin-bottom: 12px;
       border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.1);
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 0.95rem;
+      border: none;
+      background: #0b1020;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
     }
 
-    input::placeholder {
-      color: #64748b;
+    input:focus {
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     button {
       width: 100%;
+      margin-top: 18px;
       padding: 14px;
       border-radius: 12px;
       border: none;
+      background: linear-gradient(135deg, #00e5ff, #008cff);
+      color: #000;
+      font-weight: 700;
       cursor: pointer;
-      background: linear-gradient(135deg, #38bdf8, #2563eb);
-      color: white;
-      font-weight: 600;
-      font-size: 1rem;
-      margin-top: 8px;
+      font-size: 0.95rem;
     }
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .qr-wrapper {
-      margin-top: 24px;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    canvas {
-      background: white;
-      padding: 12px;
-      border-radius: 12px;
-    }
-
-    .download {
-      margin-top: 12px;
-      background: #020617;
-      border: 1px solid rgba(255,255,255,0.15);
+    button:hover {
+      opacity: 0.9;
     }
 
     .status {
-      margin-top: 12px;
+      text-align: center;
+      margin-top: 14px;
       font-size: 0.85rem;
-      color: #93c5fd;
+      color: var(--muted);
+    }
+
+    .error {
+      color: var(--danger);
+    }
+
+    .qr-wrapper {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 22px;
+    }
+
+    canvas {
+      background: #fff;
+      padding: 10px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+
+    .download-btn {
+      background: #0b1020;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .download-btn:hover {
+      background: rgba(0, 229, 255, 0.15);
     }
   </style>
 </head>
+
 <body>
+  <div class="container">
+    <h1>QR Code Generator</h1>
+    <p class="subtitle">Generate a secure, verifiable product authenticity QR</p>
 
-  <div class="card">
-    <h1>Generate Product QR</h1>
-    <p>Secure cryptographic authenticity code</p>
+    <label>Product ID</label>
+    <input id="id" placeholder="SKU-001" />
 
-    <input id="id" placeholder="Product ID (e.g. SKU-001)" />
-    <input id="name" placeholder="Product Name" />
-    <input id="batch" placeholder="Batch / Lot" />
+    <label>Product Name</label>
+    <input id="name" placeholder="Example Product" />
 
-    <button id="generateBtn" onclick="generateQR()">Generate QR Code</button>
+    <label>Batch / Lot</label>
+    <input id="batch" placeholder="BATCH-A1" />
 
-    <div class="status" id="status"></div>
+    <button onclick="generateQR()">Generate QR Code</button>
 
-    <div class="qr-wrapper" id="qrWrapper">
+    <div id="status" class="status"></div>
+
+    <div id="qrWrapper" class="qr-wrapper">
       <canvas id="qrCanvas"></canvas>
-      <button class="download" onclick="downloadQR()">Download QR</button>
+      <button class="download-btn" onclick="downloadQR()">Download QR</button>
     </div>
   </div>
 
-<script>
-const BACKEND_SIGN_URL = "https://anti-counterfeit-backend-new.onrender.com/sign";
-const VERIFY_BASE_URL = "https://verify.myproductauth.com/verify.html?p=";
+  <script>
+    const SIGN_ENDPOINT = "https://anti-counterfeit-backend-new.onrender.com/sign";
+    const VERIFY_BASE = "https://verify.myproductauth.com/verify.html?p=";
 
-async function generateQR() {
-  const id = document.getElementById("id").value.trim();
-  const name = document.getElementById("name").value.trim();
-  const batch = document.getElementById("batch").value.trim();
+    async function generateQR() {
+      const id = document.getElementById("id").value.trim();
+      const name = document.getElementById("name").value.trim();
+      const batch = document.getElementById("batch").value.trim();
+      const status = document.getElementById("status");
 
-  if (!id || !name || !batch) {
-    alert("Please fill out all fields");
-    return;
-  }
+      if (!id || !name || !batch) {
+        status.textContent = "❌ Please fill in all fields";
+        status.className = "status error";
+        return;
+      }
 
-  const status = document.getElementById("status");
-  status.textContent = "Generating secure token…";
+      status.textContent = "Signing product data…";
+      status.className = "status";
 
-  try {
-    const res = await fetch(BACKEND_SIGN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, name, batch })
-    });
+      try {
+        const res = await fetch(SIGN_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name, batch })
+        });
 
-    const data = await res.json();
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Backend ${res.status}: ${text}`);
+        }
 
-    if (!data.signedToken) {
-      throw new Error("No token returned");
+        const data = await res.json();
+
+        if (!data.signedToken) {
+          throw new Error("No signedToken returned");
+        }
+
+        const verifyURL = VERIFY_BASE + encodeURIComponent(data.signedToken);
+
+        await QRCode.toCanvas(
+          document.getElementById("qrCanvas"),
+          verifyURL,
+          {
+            width: 260,
+            margin: 1,
+            color: { dark: "#000000", light: "#ffffff" }
+          }
+        );
+
+        document.getElementById("qrWrapper").style.display = "flex";
+        status.textContent = "✔ QR Code generated successfully";
+
+      } catch (err) {
+        console.error(err);
+        status.textContent = "❌ " + err.message;
+        status.className = "status error";
+      }
     }
 
-    const verifyURL = VERIFY_BASE_URL + encodeURIComponent(data.signedToken);
-
-    await QRCode.toCanvas(
-      document.getElementById("qrCanvas"),
-      verifyURL,
-      {
-        width: 260,
-        margin: 1,
-        color: {
-          dark: "#000000",
-          light: "#ffffff"
-        }
-      }
-    );
-
-    document.getElementById("qrWrapper").style.display = "flex";
-    status.textContent = "QR code generated successfully ✔";
-
-  } catch (err) {
-    console.error(err);
-    status.textContent = "Failed to generate QR";
-  }
-}
-
-function downloadQR() {
-  const canvas = document.getElementById("qrCanvas");
-  const link = document.createElement("a");
-  link.download = "product-auth-qr.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-}
-</script>
-
+    function downloadQR() {
+      const canvas = document.getElementById("qrCanvas");
+      const link = document.createElement("a");
+      link.download = "product-auth-qr.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+  </script>
 </body>
 </html>
-
