@@ -2,140 +2,118 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Verify Product</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Product Verification</title>
 
 <style>
-    body {
-        margin: 0;
-        font-family: 'Segoe UI', Arial, sans-serif;
-        background: radial-gradient(circle at top, #0d0f1a, #03040a);
-        color: #e6e6e6;
-        text-align: center;
-    }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
 
-    h1 {
-        margin-top: 35px;
-        font-size: 40px;
-        color: #00c8ff;
-        text-shadow: 0 0 20px #0099dd;
-    }
+.card {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0,255,255,0.15);
+}
 
-    .status-box {
-        margin: 40px auto;
-        padding: 30px;
-        max-width: 550px;
-        border-radius: 16px;
-        background: rgba(255,255,255,0.05);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 0 25px rgba(0, 200, 255, 0.15);
-    }
+h1 {
+  margin-bottom: 8px;
+}
 
-    .loading-text {
-        font-size: 26px;
-        opacity: 0.8;
-        margin-top: 25px;
-        animation: blink 1.4s infinite;
-    }
+.status {
+  font-size: 20px;
+  margin: 16px 0;
+}
 
-    @keyframes blink {
-        0% { opacity: .3; }
-        50% { opacity: 1; }
-        100% { opacity: .3; }
-    }
+.meta {
+  text-align: left;
+  margin-top: 20px;
+  border-top: 1px solid #334155;
+  padding-top: 16px;
+}
 
-    .result {
-        font-size: 32px;
-        font-weight: bold;
-        margin-top: 25px;
-    }
+.badge {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: bold;
+  display: inline-block;
+  margin-top: 12px;
+}
 
-    .auth {
-        color: #00ffcc;
-        text-shadow: 0 0 15px #00ffcc;
-    }
-
-    .fail {
-        color: #ff4d4d;
-        text-shadow: 0 0 15px #ff0000;
-    }
-
-    .data-box {
-        margin-top: 30px;
-        text-align: left;
-        padding: 20px;
-        background: rgba(255,255,255,0.04);
-        border-radius: 14px;
-        line-height: 1.7;
-    }
-
-    .back-btn {
-        margin-top: 30px;
-        display: inline-block;
-        font-size: 20px;
-        color: #00c8ff;
-        text-decoration: none;
-    }
+.low { background: #064e3b; color: #6ee7b7; }
+.medium { background: #78350f; color: #fde68a; }
+.high { background: #7f1d1d; color: #fecaca; }
+.error { background: #1f2933; color: #fca5a5; }
 </style>
 </head>
 
 <body>
+<div class="card">
+  <h1>Product Verification</h1>
+  <div id="status" class="status">Checking authenticity…</div>
+  <div id="badge"></div>
 
-<h1>Product Verification</h1>
-
-<div class="status-box">
-    <div id="loading" class="loading-text">Checking token...</div>
-    <div id="result" class="result"></div>
-    <div id="data" class="data-box" style="display:none;"></div>
+  <div id="meta" class="meta" style="display:none;">
+    <p><strong>ID:</strong> <span id="pid"></span></p>
+    <p><strong>Name:</strong> <span id="pname"></span></p>
+    <p><strong>Batch:</strong> <span id="pbatch"></span></p>
+  </div>
 </div>
 
-<a class="back-btn" href="index.html">← Back to Home</a>
-
 <script>
-async function runVerification() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("p");
+const params = new URLSearchParams(window.location.search);
+const token = params.get("p");
 
-    if (!token) {
-        document.getElementById("loading").innerText = "No token provided.";
-        return;
+const statusEl = document.getElementById("status");
+const badgeEl = document.getElementById("badge");
+
+if (!token) {
+  statusEl.textContent = "No verification code provided";
+  badgeEl.innerHTML = '<span class="badge error">Invalid</span>';
+} else {
+  fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ signedToken: token })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.valid) {
+      statusEl.textContent = "Verification failed";
+      badgeEl.innerHTML = '<span class="badge error">Invalid</span>';
+      return;
     }
 
-    try {
-        const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ signedToken: token })
-        });
+    const riskLabels = {
+      low: "Authentic",
+      medium: "Multiple scans detected",
+      high: "Possible duplicate"
+    };
 
-        const data = await res.json();
-        document.getElementById("loading").style.display = "none";
+    statusEl.textContent = riskLabels[data.risk];
+    badgeEl.innerHTML = `<span class="badge ${data.risk}">${data.risk.toUpperCase()}</span>`;
 
-        if (data.valid) {
-            document.getElementById("result").innerHTML = "✔ AUTHENTIC";
-            document.getElementById("result").classList.add("auth");
-
-            const info = `
-                <b>Product ID:</b> ${data.payload.id}<br>
-                <b>Name:</b> ${data.payload.name}<br>
-                <b>Batch:</b> ${data.payload.batch}<br>
-                <b>Timestamp:</b> ${new Date(data.payload.timestamp).toLocaleString()}
-            `;
-
-            document.getElementById("data").innerHTML = info;
-            document.getElementById("data").style.display = "block";
-        } else {
-            document.getElementById("result").innerHTML = "✘ NOT AUTHENTIC";
-            document.getElementById("result").classList.add("fail");
-        }
-    }
-    catch (err) {
-        document.getElementById("loading").innerText = "Error verifying token.";
-    }
+    document.getElementById("pid").textContent = data.payload.id;
+    document.getElementById("pname").textContent = data.payload.name;
+    document.getElementById("pbatch").textContent = data.payload.batch;
+    document.getElementById("meta").style.display = "block";
+  })
+  .catch(() => {
+    statusEl.textContent = "Verification error";
+    badgeEl.innerHTML = '<span class="badge error">Error</span>';
+  });
 }
-
-runVerification();
 </script>
-
 </body>
 </html>
