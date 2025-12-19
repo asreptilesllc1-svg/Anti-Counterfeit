@@ -5,98 +5,45 @@
 <title>Generate Product QR</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- PRIMARY QR LIB -->
-<script src="https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js"></script>
-
-<!-- FALLBACK QR LIB -->
-<script>
-if (!window.QRCode) {
-  const s = document.createElement("script");
-  s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
-  document.head.appendChild(s);
-}
-</script>
+<script src="./libs/qrcode.min.js"></script>
 
 <style>
 body {
-  margin: 0;
   background: radial-gradient(circle at top, #0f172a, #020617);
-  font-family: system-ui, sans-serif;
+  font-family: system-ui;
   color: #e5e7eb;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
 }
-
 .card {
-  width: 100%;
-  max-width: 480px;
-  background: rgba(15,23,42,.95);
+  background: #020617;
   padding: 32px;
   border-radius: 18px;
-  box-shadow: 0 0 40px rgba(34,211,238,.25);
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 0 40px rgba(34,211,238,.35);
 }
-
-h1 {
-  text-align: center;
-  margin-bottom: 24px;
+h1 { text-align:center; margin-bottom:20px }
+input, button {
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border-radius:10px;
+  border:none;
 }
-
-label {
-  display: block;
-  margin-top: 14px;
-  font-size: 14px;
-  color: #94a3b8;
-}
-
 input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-  border-radius: 8px;
-  border: none;
-  background: #020617;
-  color: #e5e7eb;
+  background:#020617;
+  color:#e5e7eb;
 }
-
 button {
-  width: 100%;
-  margin-top: 22px;
-  padding: 14px;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(90deg, #06b6d4, #22d3ee);
-  color: #020617;
+  background: linear-gradient(90deg,#06b6d4,#22d3ee);
+  color:#020617;
+  font-weight:bold;
+  cursor:pointer;
 }
-
-#qr {
-  margin-top: 26px;
-  display: flex;
-  justify-content: center;
-}
-
-#download {
-  display: none;
-  margin-top: 14px;
-  background: transparent;
-  color: #22d3ee;
-  border: 1px solid #22d3ee;
-}
-
-#error {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 8px;
-  background: #450a0a;
-  color: #fecaca;
-  font-size: 14px;
-  display: none;
-  white-space: pre-wrap;
-}
+#qr { margin-top:24px; text-align:center }
 </style>
 </head>
 
@@ -104,103 +51,48 @@ button {
 <div class="card">
   <h1>Generate Product QR</h1>
 
-  <label>Product ID</label>
-  <input id="pid" placeholder="SKU-001">
+  <input id="id" placeholder="Product ID">
+  <input id="name" placeholder="Product Name">
+  <input id="batch" placeholder="Batch">
 
-  <label>Product Name</label>
-  <input id="pname" placeholder="Premium Phone">
-
-  <label>Batch</label>
-  <input id="pbatch" placeholder="B1">
-
-  <button onclick="generate()">Generate QR Code</button>
+  <button onclick="generate()">Generate QR</button>
 
   <div id="qr"></div>
-  <button id="download" onclick="downloadQR()">Download QR</button>
-  <div id="error"></div>
 </div>
 
 <script>
-let qrCanvas = null;
-
 async function generate() {
-  hideError();
-
   if (!window.QRCode) {
-    showError("QR library failed to load.\nCheck internet or refresh page.");
+    alert("QR library failed to load");
     return;
   }
 
-  const id = pid.value.trim();
-  const name = pname.value.trim();
-  const batch = pbatch.value.trim();
+  const body = {
+    id: id.value,
+    name: name.value,
+    batch: batch.value
+  };
 
-  if (!id || !name || !batch) {
-    showError("All fields are required.");
-    return;
-  }
+  const res = await fetch(
+    "https://anti-counterfeit-backend-new.onrender.com/sign",
+    {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    }
+  );
 
-  try {
-    const res = await fetch(
-      "https://anti-counterfeit-backend-new.onrender.com/sign",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name, batch })
-      }
-    );
+  const data = await res.json();
+  const url =
+    "https://verify.myproductauth.com/verify.html?p=" +
+    encodeURIComponent(data.signedToken);
 
-    const text = await res.text();
-    if (!res.ok) throw new Error(text);
-
-    const data = JSON.parse(text);
-    if (!data.signedToken) throw new Error("signedToken missing");
-
-    const verifyURL =
-      "https://verify.myproductauth.com/verify.html?p=" +
-      encodeURIComponent(data.signedToken);
-
-    document.getElementById("qr").innerHTML = "";
-    qrCanvas = document.createElement("canvas");
-
-    QRCode.toCanvas(qrCanvas, verifyURL, {
-      width: 360,
-      margin: 1,
-      errorCorrectionLevel: "H",
-      color: {
-        dark: "#000000",
-        light: "#ffffff"
-      }
-    });
-
-    document.getElementById("qr").appendChild(qrCanvas);
-    document.getElementById("download").style.display = "block";
-
-  } catch (e) {
-    showError(e.message);
-  }
-}
-
-function downloadQR() {
-  if (!qrCanvas) return;
-  const a = document.createElement("a");
-  a.download = "product-qr.png";
-  a.href = qrCanvas.toDataURL("image/png");
-  a.click();
-}
-
-function showError(msg) {
-  const e = document.getElementById("error");
-  e.textContent = msg;
-  e.style.display = "block";
-}
-
-function hideError() {
-  const e = document.getElementById("error");
-  e.style.display = "none";
+  document.getElementById("qr").innerHTML="";
+  const canvas = document.createElement("canvas");
+  canvas.width=360; canvas.height=360;
+  QRCode.toCanvas(canvas,url);
+  document.getElementById("qr").appendChild(canvas);
 }
 </script>
 </body>
 </html>
-
-
