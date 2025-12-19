@@ -1,145 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Generate Product QR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Generate Product QR</title>
 
-  <style>
-    body {
-      margin: 0;
-      background: radial-gradient(circle at top, #111 0%, #000 70%);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #e5e7eb;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
+<!-- Local QR library -->
+<script src="./qrcode.min.js"></script>
 
-    .card {
-      width: 100%;
-      max-width: 420px;
-      background: rgba(20,20,20,0.9);
-      border: 1px solid #1f2937;
-      border-radius: 16px;
-      padding: 28px;
-      box-shadow: 0 0 40px rgba(0,0,0,0.6);
-      text-align: center;
-    }
+<style>
+  * {
+    box-sizing: border-box;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
 
-    h1 {
-      font-size: 1.6rem;
-      margin-bottom: 1.2rem;
-      color: #fff;
-    }
+  body {
+    margin: 0;
+    background: radial-gradient(circle at top, #0b0f1a, #05070d);
+    color: #e6e9f0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-    input {
-      width: 100%;
-      padding: 12px;
-      margin-bottom: 12px;
-      background: #0b0b0b;
-      border: 1px solid #333;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 1rem;
-    }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: rgba(15, 20, 40, 0.9);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 14px;
+    padding: 28px;
+    box-shadow: 0 0 40px rgba(0, 255, 255, 0.08);
+  }
 
-    button {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #fff, #cbd5f5);
-      color: #000;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 10px;
-    }
+  h1 {
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 22px;
+    letter-spacing: 1px;
+  }
 
-    #qr {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-    }
+  p {
+    text-align: center;
+    font-size: 14px;
+    opacity: 0.8;
+    margin-bottom: 22px;
+  }
 
-    #download {
-      display: none;
-      margin-top: 14px;
-      color: #9ca3af;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-  </style>
+  label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 6px;
+    opacity: 0.85;
+  }
+
+  input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: #0b1020;
+    color: #fff;
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #00f0ff, #0066ff);
+    color: #000;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  button:hover {
+    opacity: 0.9;
+  }
+
+  .qr-wrap {
+    margin-top: 24px;
+    display: flex;
+    justify-content: center;
+  }
+
+  #qrcode {
+    padding: 14px;
+    background: #ffffff;
+    border-radius: 12px;
+  }
+
+  .download {
+    margin-top: 16px;
+    text-align: center;
+    display: none;
+  }
+
+  .download a {
+    color: #00f0ff;
+    font-size: 14px;
+    text-decoration: none;
+  }
+
+  .status {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 13px;
+    opacity: 0.85;
+  }
+</style>
 </head>
 
 <body>
-  <div class="card">
-    <h1>Generate Product QR</h1>
 
-    <input id="id" placeholder="Product ID" />
-    <input id="name" placeholder="Product Name" />
-    <input id="batch" placeholder="Batch / Lot" />
+<div class="card">
+  <h1>Product QR Generator</h1>
+  <p>Generate a secure authenticity QR code</p>
 
-    <button onclick="generateQR()">Generate QR Code</button>
+  <label>Product ID</label>
+  <input id="pid" placeholder="SKU-001" />
 
-    <div id="qr"></div>
-    <div id="download" onclick="downloadQR()">Download QR</div>
+  <label>Product Name</label>
+  <input id="name" placeholder="Example Product" />
+
+  <label>Batch / Lot</label>
+  <input id="batch" placeholder="BATCH-A1" />
+
+  <button onclick="generateQR()">Generate QR Code</button>
+
+  <div class="status" id="status"></div>
+
+  <div class="qr-wrap">
+    <div id="qrcode"></div>
   </div>
 
-  <!-- ✅ LOCAL QR LIBRARY (NO CDN) -->
-  <script src="./qrcode.min.js"></script>
+  <div class="download" id="download">
+    <a id="downloadLink" download="product-qr.png">Download QR Code</a>
+  </div>
+</div>
 
-  <script>
-    let qrInstance = null;
+<script>
+async function generateQR() {
+  const status = document.getElementById("status");
+  const qrDiv = document.getElementById("qrcode");
+  const downloadDiv = document.getElementById("download");
+  qrDiv.innerHTML = "";
+  downloadDiv.style.display = "none";
 
-    async function generateQR() {
-      document.getElementById("qr").innerHTML = "";
-      document.getElementById("download").style.display = "none";
+  const payload = {
+    id: document.getElementById("pid").value,
+    name: document.getElementById("name").value,
+    batch: document.getElementById("batch").value,
+  };
 
-      const payload = {
-        id: id.value,
-        name: name.value,
-        batch: batch.value
-      };
+  if (!payload.id || !payload.name) {
+    status.textContent = "Please enter product details.";
+    return;
+  }
 
-      const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+  status.textContent = "Generating secure token...";
 
-      if (!res.ok) {
-        alert("Failed to generate token");
-        return;
-      }
+  try {
+    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-      const { signedToken } = await res.json();
-      const verifyUrl =
-        "https://verify.myproductauth.com/verify.html?p=" +
-        encodeURIComponent(signedToken);
+    const data = await res.json();
+    if (!data.signedToken) throw new Error();
 
-      qrInstance = new QRCode(document.getElementById("qr"), {
-        text: verifyUrl,
-        width: 260,
-        height: 260,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-      });
+    const verifyURL =
+      "https://verify.myproductauth.com/verify.html?p=" +
+      encodeURIComponent(data.signedToken);
 
-      document.getElementById("download").style.display = "block";
-    }
+    status.textContent = "Rendering high-quality QR code...";
 
-    function downloadQR() {
-      const img = document.querySelector("#qr img");
-      if (!img) return;
-      const a = document.createElement("a");
-      a.href = img.src;
-      a.download = "product-qr.png";
-      a.click();
-    }
-  </script>
+    const qr = new QRCode(qrDiv, {
+      text: verifyURL,
+      width: 340,
+      height: 340,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+
+    setTimeout(() => {
+      const img = qrDiv.querySelector("img");
+      document.getElementById("downloadLink").href = img.src;
+      downloadDiv.style.display = "block";
+      status.textContent = "QR code ready.";
+    }, 300);
+
+  } catch (e) {
+    status.textContent = "Failed to generate QR code.";
+  }
+}
+</script>
+
 </body>
 </html>
