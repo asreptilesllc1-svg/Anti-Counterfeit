@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Generate Product QR</title>
 
-<!-- QR Library (RELIABLE) -->
+<!-- QR Code Library -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
 <style>
@@ -13,20 +13,20 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #0f172a, #020617);
   color: #e5e7eb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: system-ui, sans-serif;
   min-height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
 .container {
+  width: 100%;
+  max-width: 480px;
   background: rgba(15, 23, 42, 0.95);
   padding: 32px;
   border-radius: 16px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 0 40px rgba(0,255,255,0.15);
+  box-shadow: 0 0 40px rgba(34,211,238,0.2);
 }
 
 h1 {
@@ -57,15 +57,11 @@ button {
   padding: 14px;
   border-radius: 10px;
   border: none;
-  font-weight: bold;
   font-size: 16px;
+  font-weight: bold;
   cursor: pointer;
   background: linear-gradient(90deg, #06b6d4, #22d3ee);
   color: #020617;
-}
-
-button:hover {
-  opacity: 0.9;
 }
 
 #qr {
@@ -77,9 +73,20 @@ button:hover {
 #download {
   display: none;
   margin-top: 16px;
-  background: #020617;
+  background: transparent;
   color: #22d3ee;
   border: 1px solid #22d3ee;
+}
+
+#error {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #450a0a;
+  color: #fecaca;
+  font-size: 14px;
+  display: none;
+  white-space: pre-wrap;
 }
 </style>
 </head>
@@ -89,80 +96,106 @@ button:hover {
   <h1>Generate Product QR</h1>
 
   <label>Product ID</label>
-  <input id="pid" placeholder="e.g. SKU-001"/>
+  <input id="pid" placeholder="SKU-001" />
 
   <label>Product Name</label>
-  <input id="pname" placeholder="e.g. Premium Phone"/>
+  <input id="pname" placeholder="Premium Phone" />
 
   <label>Batch</label>
-  <input id="pbatch" placeholder="e.g. B1"/>
+  <input id="pbatch" placeholder="B1" />
 
   <button onclick="generate()">Generate QR Code</button>
 
   <div id="qr"></div>
   <button id="download" onclick="downloadQR()">Download QR</button>
+  <div id="error"></div>
 </div>
 
 <script>
 let qrCanvas = null;
 
 async function generate() {
-  const id = document.getElementById("pid").value;
-  const name = document.getElementById("pname").value;
-  const batch = document.getElementById("pbatch").value;
+  const errorBox = document.getElementById("error");
+  errorBox.style.display = "none";
+  errorBox.textContent = "";
+
+  const id = pid.value.trim();
+  const name = pname.value.trim();
+  const batch = pbatch.value.trim();
 
   if (!id || !name || !batch) {
-    alert("Please fill out all fields");
+    showError("All fields are required.");
     return;
   }
 
-  document.getElementById("qr").innerHTML = "";
-  document.getElementById("download").style.display = "none";
+  if (typeof QRCode === "undefined") {
+    showError("QR library failed to load.");
+    return;
+  }
 
   try {
-    const res = await fetch("https://anti-counterfeit-backend-new.onrender.com/sign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, name, batch })
-    });
+    const response = await fetch(
+      "https://anti-counterfeit-backend-new.onrender.com/sign",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, name, batch })
+      }
+    );
 
-    const data = await res.json();
+    const text = await response.text();
+
+    if (!response.ok) {
+      throw new Error("Backend error:\n" + text);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON from backend:\n" + text);
+    }
 
     if (!data.signedToken) {
-      throw new Error("No token returned");
+      throw new Error("signedToken missing in response:\n" + text);
     }
 
     const verifyURL =
       "https://verify.myproductauth.com/verify.html?p=" +
       encodeURIComponent(data.signedToken);
 
+    document.getElementById("qr").innerHTML = "";
     qrCanvas = document.createElement("canvas");
 
     QRCode.toCanvas(qrCanvas, verifyURL, {
       width: 320,
       margin: 2,
-      color: {
-        dark: "#000000",
-        light: "#ffffff"
-      }
+      color: { dark: "#000000", light: "#ffffff" }
     });
 
     document.getElementById("qr").appendChild(qrCanvas);
     document.getElementById("download").style.display = "block";
 
   } catch (err) {
-    alert("Failed to generate QR code");
+    showError(err.message);
     console.error(err);
   }
 }
 
 function downloadQR() {
   if (!qrCanvas) return;
-  const link = document.createElement("a");
-  link.download = "product-qr.png";
-  link.href = qrCanvas.toDataURL("image/png");
-  link.click();
+  const a = document.createElement("a");
+  a.download = "product-qr.png";
+  a.href = qrCanvas.toDataURL("image/png");
+  a.click();
+}
+
+function showError(msg) {
+  const box = document.getElementById("error");
+  box.textContent = msg;
+  box.style.display = "block";
 }
 </script>
 </body>
 </html>
+
