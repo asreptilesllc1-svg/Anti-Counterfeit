@@ -1,32 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
 <title>Generate Product QR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- QR Code Library -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<!-- PRIMARY QR LIB -->
+<script src="https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js"></script>
+
+<!-- FALLBACK QR LIB -->
+<script>
+if (!window.QRCode) {
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+  document.head.appendChild(s);
+}
+</script>
 
 <style>
 body {
   margin: 0;
   background: radial-gradient(circle at top, #0f172a, #020617);
-  color: #e5e7eb;
   font-family: system-ui, sans-serif;
-  min-height: 100vh;
+  color: #e5e7eb;
   display: flex;
   justify-content: center;
   align-items: center;
+  min-height: 100vh;
 }
 
-.container {
+.card {
   width: 100%;
   max-width: 480px;
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15,23,42,.95);
   padding: 32px;
-  border-radius: 16px;
-  box-shadow: 0 0 40px rgba(34,211,238,0.2);
+  border-radius: 18px;
+  box-shadow: 0 0 40px rgba(34,211,238,.25);
 }
 
 h1 {
@@ -44,35 +53,35 @@ label {
 input {
   width: 100%;
   padding: 10px;
+  margin-top: 6px;
   border-radius: 8px;
   border: none;
-  margin-top: 6px;
   background: #020617;
   color: #e5e7eb;
 }
 
 button {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 22px;
   padding: 14px;
-  border-radius: 10px;
-  border: none;
   font-size: 16px;
   font-weight: bold;
+  border-radius: 10px;
+  border: none;
   cursor: pointer;
   background: linear-gradient(90deg, #06b6d4, #22d3ee);
   color: #020617;
 }
 
 #qr {
-  margin-top: 24px;
+  margin-top: 26px;
   display: flex;
   justify-content: center;
 }
 
 #download {
   display: none;
-  margin-top: 16px;
+  margin-top: 14px;
   background: transparent;
   color: #22d3ee;
   border: 1px solid #22d3ee;
@@ -92,17 +101,17 @@ button {
 </head>
 
 <body>
-<div class="container">
+<div class="card">
   <h1>Generate Product QR</h1>
 
   <label>Product ID</label>
-  <input id="pid" placeholder="SKU-001" />
+  <input id="pid" placeholder="SKU-001">
 
   <label>Product Name</label>
-  <input id="pname" placeholder="Premium Phone" />
+  <input id="pname" placeholder="Premium Phone">
 
   <label>Batch</label>
-  <input id="pbatch" placeholder="B1" />
+  <input id="pbatch" placeholder="B1">
 
   <button onclick="generate()">Generate QR Code</button>
 
@@ -115,9 +124,12 @@ button {
 let qrCanvas = null;
 
 async function generate() {
-  const errorBox = document.getElementById("error");
-  errorBox.style.display = "none";
-  errorBox.textContent = "";
+  hideError();
+
+  if (!window.QRCode) {
+    showError("QR library failed to load.\nCheck internet or refresh page.");
+    return;
+  }
 
   const id = pid.value.trim();
   const name = pname.value.trim();
@@ -128,13 +140,8 @@ async function generate() {
     return;
   }
 
-  if (typeof QRCode === "undefined") {
-    showError("QR library failed to load.");
-    return;
-  }
-
   try {
-    const response = await fetch(
+    const res = await fetch(
       "https://anti-counterfeit-backend-new.onrender.com/sign",
       {
         method: "POST",
@@ -143,22 +150,11 @@ async function generate() {
       }
     );
 
-    const text = await response.text();
+    const text = await res.text();
+    if (!res.ok) throw new Error(text);
 
-    if (!response.ok) {
-      throw new Error("Backend error:\n" + text);
-    }
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error("Invalid JSON from backend:\n" + text);
-    }
-
-    if (!data.signedToken) {
-      throw new Error("signedToken missing in response:\n" + text);
-    }
+    const data = JSON.parse(text);
+    if (!data.signedToken) throw new Error("signedToken missing");
 
     const verifyURL =
       "https://verify.myproductauth.com/verify.html?p=" +
@@ -168,17 +164,20 @@ async function generate() {
     qrCanvas = document.createElement("canvas");
 
     QRCode.toCanvas(qrCanvas, verifyURL, {
-      width: 320,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" }
+      width: 360,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: {
+        dark: "#000000",
+        light: "#ffffff"
+      }
     });
 
     document.getElementById("qr").appendChild(qrCanvas);
     document.getElementById("download").style.display = "block";
 
-  } catch (err) {
-    showError(err.message);
-    console.error(err);
+  } catch (e) {
+    showError(e.message);
   }
 }
 
@@ -191,11 +190,17 @@ function downloadQR() {
 }
 
 function showError(msg) {
-  const box = document.getElementById("error");
-  box.textContent = msg;
-  box.style.display = "block";
+  const e = document.getElementById("error");
+  e.textContent = msg;
+  e.style.display = "block";
+}
+
+function hideError() {
+  const e = document.getElementById("error");
+  e.style.display = "none";
 }
 </script>
 </body>
 </html>
+
 
