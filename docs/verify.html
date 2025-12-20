@@ -6,157 +6,93 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-  :root{
-    --bg1:#020617;
-    --bg2:#0b1224;
-    --card:#050b1a;
-    --text:#e5e7eb;
-    --muted:#94a3b8;
-    --green:#22c55e;
-    --red:#ef4444;
-    --cyan:#22d3ee;
-  }
-
-  body{
-    margin:0;
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background: radial-gradient(circle at top, var(--bg2), var(--bg1));
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    color:var(--text);
-    padding:24px;
-  }
-
-  .card{
-    width:100%;
-    max-width:560px;
-    background: rgba(5,11,26,.95);
-    border:1px solid rgba(34,211,238,.25);
-    box-shadow: 0 0 60px rgba(34,211,238,.18);
-    border-radius:20px;
-    padding:32px;
-    text-align:center;
-  }
-
-  h1{
-    margin:0 0 10px;
-    letter-spacing:.3px;
-  }
-
-  .status{
-    margin-top:18px;
-    font-size:22px;
-    font-weight:800;
-  }
-
-  .ok{ color: var(--green); }
-  .bad{ color: var(--red); }
-
-  .meta{
-    margin-top:22px;
-    text-align:left;
-    background: rgba(2,6,23,.7);
-    border-radius:14px;
-    padding:18px;
-    border:1px solid rgba(148,163,184,.2);
-  }
-
-  .row{
-    display:flex;
-    justify-content:space-between;
-    gap:12px;
-    margin-bottom:10px;
-  }
-
-  .label{ color: var(--muted); }
-  .value{ font-weight:600; }
-
-  .footer{
-    margin-top:22px;
-    font-size:13px;
-    color:var(--muted);
-  }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #0f2027, #000);
+  color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+.card {
+  background: rgba(0,0,0,0.6);
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0,255,255,0.15);
+}
+.status {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+.success { color: #00ffcc; }
+.warning { color: #ffcc00; }
+.error { color: #ff4d4d; }
+.meta {
+  text-align: left;
+  margin-top: 20px;
+  font-size: 15px;
+}
+.meta div {
+  margin-bottom: 8px;
+}
 </style>
 </head>
 
 <body>
 <div class="card">
-  <h1>Product Verification</h1>
-  <div id="status" class="status">Checking authenticity…</div>
-
-  <div id="meta" class="meta" style="display:none;"></div>
-
-  <div class="footer">
-    Powered by cryptographic verification
-  </div>
+  <div id="status" class="status">Checking…</div>
+  <div id="details"></div>
 </div>
 
 <script>
-const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
-
-// Read token from URL (?p=...)
 const params = new URLSearchParams(window.location.search);
 const token = params.get("p");
 
 const statusEl = document.getElementById("status");
-const metaEl = document.getElementById("meta");
+const detailsEl = document.getElementById("details");
 
-if(!token){
-  statusEl.textContent = "❌ No verification token found";
-  statusEl.className = "status bad";
+if (!token) {
+  statusEl.textContent = "No token provided";
+  statusEl.className = "status error";
 } else {
-  verifyToken(token);
-}
-
-async function verifyToken(signedToken){
-  try{
-    const res = await fetch(BACKEND + "/verify-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signedToken })
-    });
-
-    const data = await res.json();
-
-    if(!res.ok || !data.valid){
-      throw new Error(data.error || "Verification failed");
+  fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ signedToken: token })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.valid) {
+      statusEl.textContent = "Verification Failed";
+      statusEl.className = "status error";
+      return;
     }
 
-    statusEl.textContent = "✔ AUTHENTIC PRODUCT";
-    statusEl.className = "status ok";
+    statusEl.textContent = data.cloneRisk
+      ? "⚠️ Possible Duplicate"
+      : "✔ Authentic Product";
 
-    renderMeta(data.payload);
-  }catch(err){
-    statusEl.textContent = "❌ VERIFICATION FAILED";
-    statusEl.className = "status bad";
-    metaEl.style.display = "block";
-    metaEl.textContent = err.message;
-  }
-}
+    statusEl.className = "status " + (data.cloneRisk ? "warning" : "success");
 
-function renderMeta(payload){
-  metaEl.innerHTML = "";
-
-  Object.entries(payload).forEach(([key,value])=>{
-    const row = document.createElement("div");
-    row.className = "row";
-
-    const label = document.createElement("div");
-    label.className = "label";
-    label.textContent = key;
-
-    const val = document.createElement("div");
-    val.className = "value";
-    val.textContent = value;
-
-    row.appendChild(label);
-    row.appendChild(val);
-    metaEl.appendChild(row);
+    detailsEl.innerHTML = `
+      <div class="meta">
+        <div><strong>ID:</strong> ${data.payload.id}</div>
+        <div><strong>Name:</strong> ${data.payload.name}</div>
+        <div><strong>Batch:</strong> ${data.payload.batch}</div>
+        <div><strong>Scans:</strong> ${data.scanCount}</div>
+        <div><strong>Location:</strong> ${data.location}</div>
+      </div>
+    `;
+  })
+  .catch(() => {
+    statusEl.textContent = "Server error";
+    statusEl.className = "status error";
   });
-
-  metaEl.style.display = "block";
 }
 </script>
 </body>
