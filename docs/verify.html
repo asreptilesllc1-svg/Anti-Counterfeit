@@ -2,59 +2,82 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Product Verification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body {
-  margin: 0;
-  background: radial-gradient(circle at top, #0f172a, #020617);
-  color: #e5e7eb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-}
+  :root{
+    --bg1:#020617;
+    --bg2:#0b1224;
+    --card:#050b1a;
+    --text:#e5e7eb;
+    --muted:#94a3b8;
+    --green:#22c55e;
+    --red:#ef4444;
+    --cyan:#22d3ee;
+  }
 
-.card {
-  background: rgba(15, 23, 42, 0.9);
-  border-radius: 16px;
-  padding: 32px;
-  width: 100%;
-  max-width: 420px;
-  text-align: center;
-  box-shadow: 0 0 40px rgba(0,255,255,0.15);
-}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: radial-gradient(circle at top, var(--bg2), var(--bg1));
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color:var(--text);
+    padding:24px;
+  }
 
-h1 {
-  margin-bottom: 8px;
-}
+  .card{
+    width:100%;
+    max-width:560px;
+    background: rgba(5,11,26,.95);
+    border:1px solid rgba(34,211,238,.25);
+    box-shadow: 0 0 60px rgba(34,211,238,.18);
+    border-radius:20px;
+    padding:32px;
+    text-align:center;
+  }
 
-.status {
-  font-size: 20px;
-  margin: 16px 0;
-}
+  h1{
+    margin:0 0 10px;
+    letter-spacing:.3px;
+  }
 
-.meta {
-  text-align: left;
-  margin-top: 20px;
-  border-top: 1px solid #334155;
-  padding-top: 16px;
-}
+  .status{
+    margin-top:18px;
+    font-size:22px;
+    font-weight:800;
+  }
 
-.badge {
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-weight: bold;
-  display: inline-block;
-  margin-top: 12px;
-}
+  .ok{ color: var(--green); }
+  .bad{ color: var(--red); }
 
-.low { background: #064e3b; color: #6ee7b7; }
-.medium { background: #78350f; color: #fde68a; }
-.high { background: #7f1d1d; color: #fecaca; }
-.error { background: #1f2933; color: #fca5a5; }
+  .meta{
+    margin-top:22px;
+    text-align:left;
+    background: rgba(2,6,23,.7);
+    border-radius:14px;
+    padding:18px;
+    border:1px solid rgba(148,163,184,.2);
+  }
+
+  .row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:10px;
+  }
+
+  .label{ color: var(--muted); }
+  .value{ font-weight:600; }
+
+  .footer{
+    margin-top:22px;
+    font-size:13px;
+    color:var(--muted);
+  }
 </style>
 </head>
 
@@ -62,57 +85,78 @@ h1 {
 <div class="card">
   <h1>Product Verification</h1>
   <div id="status" class="status">Checking authenticity…</div>
-  <div id="badge"></div>
 
-  <div id="meta" class="meta" style="display:none;">
-    <p><strong>ID:</strong> <span id="pid"></span></p>
-    <p><strong>Name:</strong> <span id="pname"></span></p>
-    <p><strong>Batch:</strong> <span id="pbatch"></span></p>
+  <div id="meta" class="meta" style="display:none;"></div>
+
+  <div class="footer">
+    Powered by cryptographic verification
   </div>
 </div>
 
 <script>
+const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
+
+// Read token from URL (?p=...)
 const params = new URLSearchParams(window.location.search);
 const token = params.get("p");
 
 const statusEl = document.getElementById("status");
-const badgeEl = document.getElementById("badge");
+const metaEl = document.getElementById("meta");
 
-if (!token) {
-  statusEl.textContent = "No verification code provided";
-  badgeEl.innerHTML = '<span class="badge error">Invalid</span>';
+if(!token){
+  statusEl.textContent = "❌ No verification token found";
+  statusEl.className = "status bad";
 } else {
-  fetch("https://anti-counterfeit-backend-new.onrender.com/verify-token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ signedToken: token })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (!data.valid) {
-      statusEl.textContent = "Verification failed";
-      badgeEl.innerHTML = '<span class="badge error">Invalid</span>';
-      return;
+  verifyToken(token);
+}
+
+async function verifyToken(signedToken){
+  try{
+    const res = await fetch(BACKEND + "/verify-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signedToken })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok || !data.valid){
+      throw new Error(data.error || "Verification failed");
     }
 
-    const riskLabels = {
-      low: "Authentic",
-      medium: "Multiple scans detected",
-      high: "Possible duplicate"
-    };
+    statusEl.textContent = "✔ AUTHENTIC PRODUCT";
+    statusEl.className = "status ok";
 
-    statusEl.textContent = riskLabels[data.risk];
-    badgeEl.innerHTML = `<span class="badge ${data.risk}">${data.risk.toUpperCase()}</span>`;
+    renderMeta(data.payload);
+  }catch(err){
+    statusEl.textContent = "❌ VERIFICATION FAILED";
+    statusEl.className = "status bad";
+    metaEl.style.display = "block";
+    metaEl.textContent = err.message;
+  }
+}
 
-    document.getElementById("pid").textContent = data.payload.id;
-    document.getElementById("pname").textContent = data.payload.name;
-    document.getElementById("pbatch").textContent = data.payload.batch;
-    document.getElementById("meta").style.display = "block";
-  })
-  .catch(() => {
-    statusEl.textContent = "Verification error";
-    badgeEl.innerHTML = '<span class="badge error">Error</span>';
+function renderMeta(payload){
+  metaEl.innerHTML = "";
+
+  Object.entries(payload).forEach(([key,value])=>{
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = key;
+
+    const val = document.createElement("div");
+    val.className = "value";
+    val.textContent = value;
+
+    row.appendChild(label);
+    row.appendChild(val);
+    metaEl.appendChild(row);
   });
+
+  metaEl.style.display = "block";
 }
 </script>
 </body>
