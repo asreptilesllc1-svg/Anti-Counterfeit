@@ -1,106 +1,112 @@
 import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import pkg from "pg";
-
-const { Pool } = pkg;
+import QRCode from "qrcode";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ==========================
-// ENVIRONMENT VARIABLES
-// ==========================
+// 🔐 Keys come from Render / env vars
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const PUBLIC_KEY = process.env.PUBLIC_KEY;
-const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!PUBLIC_KEY || !DATABASE_URL) {
-  console.error("❌ Missing PUBLIC_KEY or DATABASE_URL");
-}
+const PORT = process.env.PORT || 10000;
 
-// ==========================
-// DATABASE CONNECTION
-// ==========================
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-// ==========================
-// UTIL
-// ==========================
-function hashToken(token) {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-// ==========================
-// HEALTH CHECK
-// ==========================
+// Health check
 app.get("/", (req, res) => {
-  res.json({ status: "ok", service: "anti-counterfeit-backend" });
+  res.json({ status: "ok", message: "Anti-counterfeit backend running" });
 });
 
-// ==========================
-// VERIFY TOKEN
-// ==========================
-app.post("/verify-token", async (req, res) => {
-  const { signedToken } = req.body || {};
+// SIGN endpoint
+// Returns: signedToken + verifyUrl
+app.post("/sign", async (req, res) => {
+  const payload =
+    req.body && Object.keys(req.body).length
+      ? req.body
+      : { id: "TEST-DEFAULT", name: "Default Product", timestamp: Date.now() };
 
-  if (!signedToken) {
-    return res.status(400).json({
-      valid: false,
-      error: "No token provided",
-    });
+  if (!PRIVATE_KEY) {
+    return res.status(500).json({ error: "PRIVATE_KEY missing in environment" });
   }
 
   try {
-    const decoded = jwt.verify(signedToken, PUBLIC_KEY, {
-      algorithms: ["RS256"],
+    const signedToken = jwt.sign({ data: payload }, PRIVATE_KEY, {
+      algorithm: "RS256",
     });
 
-    const tokenHash = hashToken(signedToken);
+    const verifyUrl =
+      "https://verify.myproductauth.com/verify.html?p=" +
+      encodeURIComponent(signedToken);
 
-    await pool.query(
-      `INSERT INTO scans (token_hash, ip, user_agent)
-       VALUES ($1, $2, $3)`,
-      [
-        tokenHash,
-        req.headers["x-forwarded-for"] || req.socket.remoteAddress,
-        req.headers["user-agent"],
-      ]
-    );
-
-    const { rows } = await pool.query(
-      `SELECT COUNT(*) FROM scans WHERE token_hash = $1`,
-      [tokenHash]
-    );
-
-    const scanCount = Number(rows[0].count);
-
-    let risk = "low";
-    if (scanCount > 5) risk = "medium";
-    if (scanCount > 20) risk = "high";
-
-    return res.json({
-      valid: true,
-      risk,
-      payload: decoded.data,
-    });
+    res.json({ signedToken, verifyUrl });
   } catch (err) {
-    console.error("Verify error:", err.message);
-    return res.status(400).json({
-      valid: false,
-      error: "Invalid token",
-    });
+    console.error("Sign error:", err);
+    res.status(400).json({ error: "Signing failed" });
   }
 });
 
-// ==========================
-// START SERVER
-// ==========================
-const PORT = process.env.PORT || 10000;
+// SIGN + QR endpoint (NO frontend QR library needed)
+// Returns: signedToken + verifyUrl + qrDataUrl (PNG)
+app.post("/sign-qr", async (req, res) => {
+  const payload =
+    req.body && Object.keys(req.body).length
+      ? req.body
+      : { id: "TEST-DEFAULT", name: "Default Product", timestamp: Date.now() };
+
+  if (!PRIVATE_KEY) {
+    return res.status(500).json({ error: "PRIVATE_KEY missing in environment" });
+  }
+
+  try {
+    const signedToken = jwt.sign({ data: payload }, PRIVATE_KEY, {
+      algorithm: "RS256",
+    });
+
+    const verifyUrl =
+      "https://verify.myproductauth.com/verify.html?p=" +
+      encodeURIComponent(signedToken);
+
+    // Black/white QR, high error correction, strong size for easy scanning
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      scale: 10,
+      color: { dark: "#000000", light: "#FFFFFF" },
+    });
+
+    res.json({ signedToken, verifyUrl, qrDataUrl });
+  } catch (err) {
+    console.error("Sign-QR error:", err);
+    res.status(400).json({ error: "QR generation failed" });
+  }
+});
+
+// VERIFY endpoint (used by verify.html)
+app.post("/verify-token", (req, res) => {
+  const { signedToken } = req.body || {};
+
+  if (!signedToken) {
+    return res.status(400).json({ valid: false, error: "signedToken missing" });
+  }
+
+  if (!PUBLIC_KEY) {
+    return res.status(500).json({ valid: false, error: "PUBLIC_KEY missing in environment" });
+  }
+
+  try {
+    const decoded = jwt.verify(signedToken, PUBLIC_KEY, { algorithms: ["RS256"] });
+
+    res.json({
+      valid: true,
+      payload: decoded.data,
+    });
+  } catch (err) {
+    console.error("Verify error:", err);
+    res.status(400).json({ valid: false, error: "Invalid token" });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`);
+  console.log("🚀 Backend running on port " + PORT);
 });
