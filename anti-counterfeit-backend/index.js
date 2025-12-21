@@ -2,7 +2,9 @@ import express from "express";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import QRCode from "qrcode";
+import { createCanvas, loadImage } from "canvas";
 import pg from "pg";
+import fs from "fs";
 
 const { Pool } = pg;
 const app = express();
@@ -19,7 +21,7 @@ const PORT = process.env.PORT || 10000;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Required for Render PostgreSQL
+    rejectUnauthorized: false
   }
 });
 
@@ -32,11 +34,14 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
+// Logo settings
+let cachedLogo = null;
+const LOGO_PATH = './logo.png';
+
 // ================================
 // HELPER FUNCTIONS
 // ================================
 
-// Calculate risk level based on verification count
 async function calculateRiskLevel(productId) {
   try {
     const result = await pool.query(
@@ -55,7 +60,6 @@ async function calculateRiskLevel(productId) {
   }
 }
 
-// Extract IP from request
 function getClientIP(req) {
   return req.headers['x-forwarded-for']?.split(',')[0] || 
          req.connection.remoteAddress || 
@@ -63,12 +67,67 @@ function getClientIP(req) {
          'unknown';
 }
 
+// Generate QR with logo
+async function generateQRWithLogo(data, logoBuffer, options = {}) {
+  const {
+    size = 800,
+    margin = 2,
+    logoSize = 0.2,
+    logoBorderRadius = 10
+  } = options;
+
+  const qrCanvas = createCanvas(size, size);
+  await QRCode.toCanvas(qrCanvas, data, {
+    errorCorrectionLevel: 'H',
+    margin: margin,
+    width: size,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF'
+    }
+  });
+
+  const ctx = qrCanvas.getContext('2d');
+
+  if (logoBuffer) {
+    try {
+      const logo = await loadImage(logoBuffer);
+      
+      const logoWidth = size * logoSize;
+      const logoHeight = size * logoSize;
+      const logoX = (size - logoWidth) / 2;
+      const logoY = (size - logoHeight) / 2;
+
+      // White background
+      const padding = 10;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.roundRect(
+        logoX - padding, 
+        logoY - padding, 
+        logoWidth + (padding * 2), 
+        logoHeight + (padding * 2),
+        logoBorderRadius
+      );
+      ctx.fill();
+
+      // Draw logo
+      ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
+      
+      console.log('✅ Logo added to QR code');
+    } catch (err) {
+      console.warn('⚠️  Could not add logo:', err.message);
+    }
+  }
+
+  return qrCanvas.toDataURL('image/png');
+}
+
 // ================================
 // HEALTH CHECK
 // ================================
 app.get("/", async (req, res) => {
   try {
-    // Check database connection
     const dbCheck = await pool.query('SELECT NOW()');
     
     res.json({ 
@@ -78,12 +137,13 @@ app.get("/", async (req, res) => {
       timestamp: dbCheck.rows[0].now,
       endpoints: [
         "/sign-qr",
+        "/sign-qr-with-logo",
         "/verify-token", 
         "/products",
         "/verifications",
         "/analytics"
       ],
-      version: "3.0.0-database"
+      version: "3.1.0-database-logo"
     });
   } catch (err) {
     res.status(500).json({
@@ -95,7 +155,7 @@ app.get("/", async (req, res) => {
 });
 
 // ================================
-// SIGN + QR ENDPOINT
+// SIGN + QR ENDPOINT (No Logo)
 // ================================
 app.post("/sign-qr", async (req, res) => {
   const payload = req.body && Object.keys(req.body).length
@@ -103,24 +163,18 @@ app.post("/sign-qr", async (req, res) => {
     : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
 
   if (!PRIVATE_KEY) {
-    console.error("❌ PRIVATE_KEY missing in environment");
-    return res.status(500).json({ 
-      error: "Server configuration error: PRIVATE_KEY not set" 
-    });
+    return res.status(500).json({ error: "PRIVATE_KEY not set" });
   }
 
   try {
-    // Sign the payload with JWT
     const signedToken = jwt.sign({ data: payload }, PRIVATE_KEY, {
       algorithm: "RS256",
-      expiresIn: "10y" // Token expires in 10 years
+      expiresIn: "10y"
     });
 
-    // Create verification URL
     const verifyUrl = "https://verify.myproductauth.com/verify.html?p=" + 
       encodeURIComponent(signedToken);
 
-    // Generate QR code
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
       errorCorrectionLevel: "M",
       margin: 2,
@@ -128,41 +182,30 @@ app.post("/sign-qr", async (req, res) => {
       color: { dark: "#000000", light: "#FFFFFF" },
     });
 
-    // 🗄️ SAVE TO DATABASE
+    // Save to database
     try {
-      // Check if product already exists
       const existingProduct = await pool.query(
         'SELECT id FROM products WHERE product_id = $1',
         [payload.id]
       );
 
       if (existingProduct.rows.length === 0) {
-        // Insert new product
         await pool.query(
           `INSERT INTO products (product_id, name, batch, qr_data_url, signed_token, notes)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            payload.id,
-            payload.name,
-            payload.batch || 'N/A',
-            qrDataUrl,
-            signedToken,
-            payload.notes || null
-          ]
+          [payload.id, payload.name, payload.batch || 'N/A', qrDataUrl, signedToken, payload.notes || null]
         );
-        console.log(`✅ Product saved to database: ${payload.id}`);
+        console.log(`✅ Product saved: ${payload.id}`);
       } else {
-        // Update existing product
         await pool.query(
           `UPDATE products 
            SET name = $2, batch = $3, qr_data_url = $4, signed_token = $5
            WHERE product_id = $1`,
           [payload.id, payload.name, payload.batch || 'N/A', qrDataUrl, signedToken]
         );
-        console.log(`✅ Product updated in database: ${payload.id}`);
+        console.log(`✅ Product updated: ${payload.id}`);
       }
 
-      // Log the QR generation in audit log
       await pool.query(
         'INSERT INTO audit_log (action, details) VALUES ($1, $2)',
         ['QR_GENERATED', `Product: ${payload.id} - ${payload.name}`]
@@ -170,7 +213,6 @@ app.post("/sign-qr", async (req, res) => {
 
     } catch (dbErr) {
       console.error('❌ Database error:', dbErr);
-      // Continue even if database save fails
     }
 
     res.json({ 
@@ -187,39 +229,115 @@ app.post("/sign-qr", async (req, res) => {
 });
 
 // ================================
+// SIGN + QR WITH LOGO ENDPOINT
+// ================================
+app.post("/sign-qr-with-logo", async (req, res) => {
+  const { logo, ...payload } = req.body;
+  
+  const productData = Object.keys(payload).length > 0
+    ? payload
+    : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
+
+  if (!PRIVATE_KEY) {
+    return res.status(500).json({ error: "PRIVATE_KEY not set" });
+  }
+
+  try {
+    const signedToken = jwt.sign({ data: productData }, PRIVATE_KEY, {
+      algorithm: "RS256",
+      expiresIn: "10y"
+    });
+
+    const verifyUrl = "https://verify.myproductauth.com/verify.html?p=" + 
+      encodeURIComponent(signedToken);
+
+    // Determine logo source
+    let logoBuffer = null;
+    
+    if (logo) {
+      const base64Data = logo.replace(/^data:image\/\w+;base64,/, '');
+      logoBuffer = Buffer.from(base64Data, 'base64');
+      console.log('📸 Using uploaded logo');
+    } else if (fs.existsSync(LOGO_PATH)) {
+      logoBuffer = fs.readFileSync(LOGO_PATH);
+      console.log('📸 Using server default logo');
+    }
+
+    const qrDataUrl = await generateQRWithLogo(verifyUrl, logoBuffer, {
+      size: 800,
+      logoSize: 0.2,
+      margin: 2
+    });
+
+    // Save to database
+    try {
+      const existingProduct = await pool.query(
+        'SELECT id FROM products WHERE product_id = $1',
+        [productData.id]
+      );
+
+      if (existingProduct.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO products (product_id, name, batch, qr_data_url, signed_token, notes)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [productData.id, productData.name, productData.batch || 'N/A', qrDataUrl, signedToken, productData.notes || null]
+        );
+        console.log(`✅ Product with logo saved: ${productData.id}`);
+      } else {
+        await pool.query(
+          `UPDATE products 
+           SET name = $2, batch = $3, qr_data_url = $4, signed_token = $5
+           WHERE product_id = $1`,
+          [productData.id, productData.name, productData.batch || 'N/A', qrDataUrl, signedToken]
+        );
+        console.log(`✅ Product with logo updated: ${productData.id}`);
+      }
+
+      await pool.query(
+        'INSERT INTO audit_log (action, details) VALUES ($1, $2)',
+        ['QR_WITH_LOGO_GENERATED', `Product: ${productData.id} - ${productData.name}`]
+      );
+
+    } catch (dbErr) {
+      console.error('❌ Database error:', dbErr);
+    }
+
+    res.json({ 
+      signedToken, 
+      verifyUrl, 
+      qrDataUrl,
+      productId: productData.id,
+      hasLogo: !!logoBuffer
+    });
+
+  } catch (err) {
+    console.error("❌ Sign-QR-with-Logo error:", err);
+    res.status(400).json({ error: "QR generation failed: " + err.message });
+  }
+});
+
+// ================================
 // VERIFY TOKEN ENDPOINT
 // ================================
 app.post("/verify-token", async (req, res) => {
   const { signedToken } = req.body || {};
 
   if (!signedToken) {
-    return res.status(400).json({ 
-      valid: false, 
-      error: "signedToken missing from request body" 
-    });
+    return res.status(400).json({ valid: false, error: "signedToken missing" });
   }
 
   if (!PUBLIC_KEY) {
-    console.error("❌ PUBLIC_KEY missing in environment");
-    return res.status(500).json({ 
-      valid: false, 
-      error: "Server configuration error: PUBLIC_KEY not set" 
-    });
+    return res.status(500).json({ valid: false, error: "PUBLIC_KEY not set" });
   }
 
-  // Get client IP and user agent
   const ipAddress = getClientIP(req);
   const userAgent = req.headers['user-agent'] || 'unknown';
 
   try {
-    // Verify the JWT token
-    const decoded = jwt.verify(signedToken, PUBLIC_KEY, { 
-      algorithms: ["RS256"] 
-    });
-
+    const decoded = jwt.verify(signedToken, PUBLIC_KEY, { algorithms: ["RS256"] });
     const productId = decoded.data.id || "unknown";
 
-    // Check if product is active in database
+    // Check if product is active
     let isActive = true;
     try {
       const productCheck = await pool.query(
@@ -235,7 +353,6 @@ app.post("/verify-token", async (req, res) => {
     }
 
     if (!isActive) {
-      // Product has been deactivated (e.g., reported stolen)
       await pool.query(
         `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent, error_message)
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -250,10 +367,9 @@ app.post("/verify-token", async (req, res) => {
       });
     }
 
-    // Calculate risk level
     const risk = await calculateRiskLevel(productId);
 
-    // 🗄️ SAVE VERIFICATION TO DATABASE
+    // Save verification
     try {
       await pool.query(
         `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent)
@@ -262,10 +378,9 @@ app.post("/verify-token", async (req, res) => {
       );
     } catch (dbErr) {
       console.error('❌ Error saving verification:', dbErr);
-      // Continue even if save fails
     }
 
-    // Get total verification count for this product
+    // Get scan count
     let scanCount = 0;
     try {
       const countResult = await pool.query(
@@ -289,7 +404,6 @@ app.post("/verify-token", async (req, res) => {
   } catch (err) {
     console.error("❌ Verify error:", err.message);
     
-    // Log failed verification
     try {
       await pool.query(
         `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent, error_message)
@@ -312,7 +426,6 @@ app.post("/verify-token", async (req, res) => {
 // PRODUCTS ENDPOINTS
 // ================================
 
-// Get all products
 app.get("/products", async (req, res) => {
   try {
     const { search, active, limit = 50, offset = 0 } = req.query;
@@ -337,8 +450,6 @@ app.get("/products", async (req, res) => {
     params.push(parseInt(limit), parseInt(offset));
 
     const result = await pool.query(query, params);
-    
-    // Get total count
     const countResult = await pool.query('SELECT COUNT(*) FROM products');
     
     res.json({
@@ -353,7 +464,6 @@ app.get("/products", async (req, res) => {
   }
 });
 
-// Get single product
 app.get("/products/:id", async (req, res) => {
   try {
     const result = await pool.query(
@@ -372,7 +482,6 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-// Deactivate product
 app.post("/products/:id/deactivate", async (req, res) => {
   try {
     const result = await pool.query(
@@ -399,7 +508,6 @@ app.post("/products/:id/deactivate", async (req, res) => {
   }
 });
 
-// Reactivate product
 app.post("/products/:id/activate", async (req, res) => {
   try {
     const result = await pool.query(
@@ -430,7 +538,6 @@ app.post("/products/:id/activate", async (req, res) => {
 // VERIFICATIONS ENDPOINTS
 // ================================
 
-// Get all verifications
 app.get("/verifications", async (req, res) => {
   try {
     const { product_id, risk, from, to, limit = 100, offset = 0 } = req.query;
@@ -479,13 +586,11 @@ app.get("/verifications", async (req, res) => {
   }
 });
 
-// Get suspicious verifications
 app.get("/verifications/suspicious", async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM suspicious_activity LIMIT 100'
     );
-    
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching suspicious activity:', err);
@@ -560,25 +665,25 @@ app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
   console.log(`📊 Endpoints available:`);
   console.log(`   GET  /                       - Health check`);
-  console.log(`   POST /sign-qr                - Generate signed QR code`);
-  console.log(`   POST /verify-token           - Verify product authenticity`);
-  console.log(`   GET  /products               - List all products`);
-  console.log(`   GET  /products/:id           - Get product details`);
-  console.log(`   POST /products/:id/activate  - Activate product`);
-  console.log(`   POST /products/:id/deactivate - Deactivate product`);
-  console.log(`   GET  /verifications          - List verifications`);
-  console.log(`   GET  /verifications/suspicious - Suspicious activity`);
-  console.log(`   GET  /analytics/overview     - Analytics overview`);
-  console.log(`   GET  /analytics/by-date      - Analytics by date`);
-  console.log(`   GET  /analytics/by-product   - Top products`);
+  console.log(`   POST /sign-qr                - Generate QR (no logo)`);
+  console.log(`   POST /sign-qr-with-logo      - Generate QR WITH logo`);
+  console.log(`   POST /verify-token           - Verify authenticity`);
+  console.log(`   GET  /products               - List products`);
+  console.log(`   GET  /analytics/overview     - Analytics`);
   
   if (!PRIVATE_KEY || !PUBLIC_KEY) {
-    console.warn(`⚠️  WARNING: Keys not set in environment variables!`);
+    console.warn(`⚠️  WARNING: Keys not set!`);
   } else {
     console.log(`✅ Cryptographic keys loaded`);
   }
 
   if (!process.env.DATABASE_URL) {
     console.error(`❌ DATABASE_URL not set!`);
+  }
+
+  if (fs.existsSync(LOGO_PATH)) {
+    console.log(`🎨 Default logo found: ${LOGO_PATH}`);
+  } else {
+    console.log(`ℹ️  No default logo - clients can upload their own`);
   }
 });
