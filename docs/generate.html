@@ -1,239 +1,617 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Generate Product QR</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<style>
-  :root{
-    --bg1:#020617;
-    --bg2:#0b1224;
-    --card:#050b1a;
-    --text:#e5e7eb;
-    --muted:#94a3b8;
-    --cyan:#22d3ee;
-  }
-  body{
-    margin:0;
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background: radial-gradient(circle at top, var(--bg2), var(--bg1));
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    color:var(--text);
-    padding:24px;
-  }
-  .card{
-    width:100%;
-    max-width:520px;
-    background: rgba(5,11,26,.92);
-    border:1px solid rgba(34,211,238,.25);
-    box-shadow: 0 0 50px rgba(34,211,238,.15);
-    border-radius:18px;
-    padding:28px;
-  }
-  h1{ margin:0 0 10px; text-align:center; letter-spacing:.3px; }
-  p{ margin:0 0 22px; text-align:center; color:var(--muted); }
-  .grid{ display:grid; gap:12px; }
-  input{
-    width:100%;
-    box-sizing:border-box;
-    background: rgba(2,6,23,.8);
-    color:var(--text);
-    border: 1px solid rgba(148,163,184,.25);
-    border-radius:12px;
-    padding:12px 14px;
-    outline:none;
-  }
-  input:focus{
-    border-color: rgba(34,211,238,.7);
-    box-shadow: 0 0 0 4px rgba(34,211,238,.12);
-  }
-  button{
-    margin-top:10px;
-    width:100%;
-    border:none;
-    border-radius:12px;
-    padding:12px 14px;
-    font-weight:800;
-    cursor:pointer;
-    color:#02131a;
-    background: linear-gradient(90deg, #06b6d4, #22d3ee);
-    transition: opacity 0.2s;
-  }
-  button:hover{ opacity: 0.9; }
-  button:active{ transform: translateY(1px); }
-  button:disabled{ opacity: 0.5; cursor: not-allowed; }
-  .out{
-    margin-top:18px;
-    padding:16px;
-    border-radius:16px;
-    border:1px solid rgba(148,163,184,.2);
-    background: rgba(2,6,23,.55);
-  }
-  .error{
-    border-color: rgba(239, 68, 68, 0.5);
-    background: rgba(127, 29, 29, 0.2);
-    color: #fca5a5;
-  }
-  .row{
-    display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
-  }
-  .qrWrap{
-    display:flex;
-    justify-content:center;
-    margin-top:14px;
-  }
-  img{
-    width:320px; height:320px;
-    border-radius:12px;
-    background:white;
-    padding:10px;
-  }
-  .small{
-    font-size:12px;
-    color:var(--muted);
-    word-break:break-all;
-    margin-top:10px;
-  }
-  .link{
-    color: var(--cyan);
-    text-decoration:none;
-  }
-  .link:hover{ text-decoration: underline; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Generate Anti-Counterfeit QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@600;700;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --noir: #0d0d0d;
+      --charcoal: #1a1a1a;
+      --steel: #2a2a2a;
+      --silver: #e8e8e8;
+      --pearl: #f5f5f5;
+      --cyan: #00f0ff;
+      --cyan-glow: rgba(0, 240, 255, 0.4);
+      --amber: #ffb800;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Work Sans', system-ui, sans-serif;
+      background: var(--noir);
+      color: var(--pearl);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(var(--steel) 1px, transparent 1px),
+        linear-gradient(90deg, var(--steel) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.3;
+      animation: gridMove 20s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes gridMove {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(40px, 40px); }
+    }
+
+    /* Floating accent */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      right: -10%;
+      width: 60%;
+      height: 60%;
+      background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%);
+      border-radius: 50%;
+      opacity: 0.15;
+      animation: float 15s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-30px, 30px) scale(1.1); }
+    }
+
+    .container {
+      background: linear-gradient(135deg, var(--charcoal) 0%, var(--noir) 100%);
+      border: 1px solid var(--steel);
+      border-radius: 20px;
+      padding: 3.5rem 3rem;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6),
+                  0 0 1px 1px var(--steel);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Corner accent */
+    .container::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      right: -1px;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--cyan) 0%, transparent 70%);
+      border-radius: 0 20px 0 0;
+      opacity: 0.3;
+    }
+
+    h1 {
+      font-family: 'League Spartan', sans-serif;
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 0.95;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, var(--pearl) 0%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--silver);
+      font-size: 1.05rem;
+      margin-bottom: 3rem;
+      font-weight: 400;
+      opacity: 0.85;
+    }
+
+    .form-group {
+      margin-bottom: 1.75rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+      font-size: 0.9rem;
+      color: var(--silver);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      background: var(--steel);
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: var(--pearl);
+      font-size: 1.05rem;
+      font-family: inherit;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      background: var(--charcoal);
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px var(--cyan-glow);
+    }
+
+    input[type="file"] {
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    input[type="file"]::file-selector-button {
+      background: var(--charcoal);
+      border: 1px solid var(--steel);
+      border-radius: 6px;
+      padding: 0.6rem 1.25rem;
+      color: var(--cyan);
+      cursor: pointer;
+      margin-right: 1rem;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.2s ease;
+    }
+
+    input[type="file"]::file-selector-button:hover {
+      background: var(--cyan);
+      color: var(--noir);
+      transform: translateY(-1px);
+    }
+
+    .logo-preview {
+      margin-top: 1.25rem;
+      display: none;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 1.25rem;
+      background: var(--charcoal);
+      border-radius: 10px;
+      border: 1px solid var(--steel);
+    }
+
+    .logo-preview.show {
+      display: flex;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo-preview img {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: white;
+      padding: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo-preview-info {
+      flex: 1;
+    }
+
+    .logo-preview-name {
+      font-weight: 600;
+      color: var(--pearl);
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .logo-preview-size {
+      font-size: 0.85rem;
+      color: var(--silver);
+      opacity: 0.7;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding: 1.25rem;
+      background: linear-gradient(135deg, var(--steel) 0%, var(--charcoal) 100%);
+      border-radius: 10px;
+      border: 1px solid var(--steel);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .checkbox-group:hover {
+      border-color: var(--cyan);
+      background: var(--steel);
+    }
+
+    input[type="checkbox"] {
+      width: 24px;
+      height: 24px;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+
+    .checkbox-group label {
+      margin: 0;
+      cursor: pointer;
+      font-size: 1rem;
+      text-transform: none;
+      color: var(--pearl);
+    }
+
+    button {
+      width: 100%;
+      padding: 1.3rem;
+      background: linear-gradient(135deg, var(--cyan) 0%, #00b8ff 100%);
+      border: none;
+      border-radius: 10px;
+      color: var(--noir);
+      font-size: 1.15rem;
+      font-weight: 800;
+      font-family: 'League Spartan', sans-serif;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 24px var(--cyan-glow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: left 0.5s;
+    }
+
+    button:hover::before {
+      left: 100%;
+    }
+
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px var(--cyan-glow);
+    }
+
+    button:active {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #result {
+      margin-top: 2.5rem;
+      display: none;
+    }
+
+    #result.show {
+      display: block;
+      animation: fadeInUp 0.5s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .qr-container {
+      background: var(--pearl);
+      padding: 2.5rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .qr-container::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(135deg, var(--cyan), var(--amber));
+      border-radius: 16px;
+      z-index: -1;
+      opacity: 0.5;
+    }
+
+    #qrImage {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .download-btn {
+      margin-top: 2rem;
+      background: var(--noir);
+      color: var(--cyan);
+      border: 2px solid var(--cyan);
+      box-shadow: 0 4px 16px rgba(0, 240, 255, 0.2);
+    }
+
+    .download-btn:hover {
+      background: var(--cyan);
+      color: var(--noir);
+    }
+
+    .status {
+      padding: 1.25rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      display: none;
+      border-left: 4px solid;
+    }
+
+    .status.show {
+      display: block;
+      animation: slideIn 0.3s ease;
+    }
+
+    .status.error {
+      background: rgba(255, 68, 68, 0.15);
+      border-color: #ff4444;
+      color: #ffaaaa;
+    }
+
+    .status.success {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .help-text {
+      font-size: 0.875rem;
+      color: var(--silver);
+      margin-top: 0.6rem;
+      opacity: 0.7;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 2.5rem 2rem;
+      }
+
+      h1 {
+        font-size: 2.25rem;
+      }
+
+      .subtitle {
+        font-size: 0.95rem;
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="card">
-    <h1>Generate Product QR</h1>
-    <p>Creates a signed verification QR (backend generated)</p>
+  <div class="container">
+    <h1>Generate<br>QR Code</h1>
+    <p class="subtitle">Cryptographically signed product authentication</p>
 
-    <div class="grid">
-      <input id="id" placeholder="Product ID (ex: SKU-001)" />
-      <input id="name" placeholder="Product Name" />
-      <input id="batch" placeholder="Batch (optional)" />
-      <button id="btn" onclick="generate()">Generate QR Code</button>
-    </div>
+    <div id="status" class="status"></div>
 
-    <div id="status" class="out" style="display:none;"></div>
-
-    <div id="result" class="out" style="display:none;">
-      <div class="row">
-        <a id="verifyLink" class="link" href="#" target="_blank" rel="noreferrer">Open verification link</a>
-        <button onclick="downloadQR()" style="max-width:200px;">Download QR</button>
+    <form id="qrForm">
+      <div class="form-group">
+        <label for="productId">Product ID *</label>
+        <input type="text" id="productId" required placeholder="SKU-12345" />
       </div>
-      <div class="qrWrap">
-        <img id="qrImg" alt="QR Code" />
+
+      <div class="form-group">
+        <label for="productName">Product Name *</label>
+        <input type="text" id="productName" required placeholder="Premium Widget Pro" />
       </div>
-      <div id="tokenText" class="small"></div>
+
+      <div class="form-group">
+        <label for="productBatch">Batch Number</label>
+        <input type="text" id="productBatch" placeholder="BATCH-2025-001" />
+      </div>
+
+      <div class="form-group">
+        <label for="logoFile">Brand Logo (Optional)</label>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/jpg" />
+        <p class="help-text">PNG with transparent background recommended. Max 2MB.</p>
+        <div id="logoPreview" class="logo-preview">
+          <img id="logoPreviewImage" src="" alt="Logo preview" />
+          <div class="logo-preview-info">
+            <div class="logo-preview-name" id="logoFileName"></div>
+            <div class="logo-preview-size" id="logoFileSize"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="useLogo" />
+        <label for="useLogo">Include logo in QR code</label>
+      </div>
+
+      <button type="submit" id="generateBtn">Generate QR Code</button>
+    </form>
+
+    <div id="result">
+      <div class="qr-container">
+        <img id="qrImage" src="" alt="QR Code" />
+        <button class="download-btn" id="downloadBtn">Download QR Code</button>
+      </div>
     </div>
   </div>
 
-<script>
-const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
-let lastQrDataUrl = null;
+  <script>
+    const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+    
+    const form = document.getElementById('qrForm');
+    const result = document.getElementById('result');
+    const qrImage = document.getElementById('qrImage');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const generateBtn = document.getElementById('generateBtn');
+    const statusDiv = document.getElementById('status');
+    const logoFile = document.getElementById('logoFile');
+    const logoPreview = document.getElementById('logoPreview');
+    const logoPreviewImage = document.getElementById('logoPreviewImage');
+    const logoFileName = document.getElementById('logoFileName');
+    const logoFileSize = document.getElementById('logoFileSize');
+    const useLogoCheckbox = document.getElementById('useLogo');
 
-function showStatus(msg, isError = false){
-  const el = document.getElementById("status");
-  el.style.display = "block";
-  el.className = isError ? "out error" : "out";
-  el.textContent = msg;
-}
+    let logoData = null;
 
-async function generate(){
-  const btn = document.getElementById("btn");
-  const idInput = document.getElementById("id").value.trim();
-  const nameInput = document.getElementById("name").value.trim();
-  const batchInput = document.getElementById("batch").value.trim();
+    logoFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.size > 2 * 1024 * 1024) {
+          showStatus('Logo file too large. Please use a file under 2MB.', 'error');
+          logoFile.value = '';
+          logoPreview.classList.remove('show');
+          return;
+        }
 
-  // Validation
-  if (!idInput) {
-    showStatus("❌ Please enter a Product ID", true);
-    return;
-  }
-
-  btn.disabled = true;
-  document.getElementById("result").style.display = "none";
-  showStatus("⏳ Generating signed token + QR...");
-
-  const body = {
-    id: idInput,
-    name: nameInput || "Unnamed Product",
-    batch: batchInput || "N/A"
-  };
-
-  try{
-    console.log("Sending request to:", BACKEND + "/sign-qr");
-    console.log("Body:", body);
-
-    const res = await fetch(BACKEND + "/sign-qr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          logoData = event.target.result;
+          logoPreviewImage.src = logoData;
+          logoFileName.textContent = file.name;
+          logoFileSize.textContent = formatFileSize(file.size);
+          logoPreview.classList.add('show');
+          useLogoCheckbox.checked = true;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        logoPreview.classList.remove('show');
+        logoData = null;
+      }
     });
 
-    console.log("Response status:", res.status);
-
-    if(!res.ok){
-      const errorText = await res.text();
-      console.error("Error response:", errorText);
-      
-      if (res.status === 404) {
-        throw new Error("Backend endpoint not found. The /sign-qr endpoint may not be deployed yet. Check Render logs.");
-      }
-      throw new Error(`Backend error: ${res.status} - ${errorText}`);
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
-    const data = await res.json();
-    console.log("Success! Response:", data);
-    
-    lastQrDataUrl = data.qrDataUrl;
+    function showStatus(message, type) {
+      statusDiv.textContent = message;
+      statusDiv.className = `status show ${type}`;
+      setTimeout(() => {
+        statusDiv.classList.remove('show');
+      }, 5000);
+    }
 
-    document.getElementById("status").style.display = "none";
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const productId = document.getElementById('productId').value.trim();
+      const productName = document.getElementById('productName').value.trim();
+      const productBatch = document.getElementById('productBatch').value.trim();
+      const useLogo = useLogoCheckbox.checked && logoData;
 
-    const link = document.getElementById("verifyLink");
-    link.href = data.verifyUrl;
+      if (!productId || !productName) {
+        showStatus('Please fill in required fields', 'error');
+        return;
+      }
 
-    document.getElementById("qrImg").src = data.qrDataUrl;
-    document.getElementById("tokenText").textContent = "Signed Token: " + data.signedToken.substring(0, 100) + "...";
+      generateBtn.disabled = true;
+      generateBtn.textContent = 'Generating...';
+      result.classList.remove('show');
 
-    document.getElementById("result").style.display = "block";
-    
-  }catch(err){
-    console.error("Generation error:", err);
-    showStatus("❌ Failed to generate QR: " + err.message, true);
-  }finally{
-    btn.disabled = false;
-  }
-}
+      try {
+        const endpoint = useLogo ? '/sign-qr-with-logo' : '/sign-qr';
+        const payload = {
+          id: productId,
+          name: productName,
+          batch: productBatch || 'N/A'
+        };
 
-function downloadQR(){
-  if(!lastQrDataUrl){
-    alert("No QR generated yet.");
-    return;
-  }
-  const a = document.createElement("a");
-  a.href = lastQrDataUrl;
-  a.download = "product-qr-" + document.getElementById("id").value + ".png";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
+        if (useLogo && logoData) {
+          payload.logo = logoData;
+        }
 
-// Add Enter key support
-document.getElementById("id").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") generate();
-});
-document.getElementById("name").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") generate();
-});
-document.getElementById("batch").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") generate();
-});
+        console.log(`Calling ${API_URL}${endpoint}`);
 
-// Log on page load
-console.log("QR Generator loaded. Backend:", BACKEND);
-</script>
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate QR code');
+        }
+
+        const data = await response.json();
+        console.log('QR generated:', data);
+
+        qrImage.src = data.qrDataUrl;
+        result.classList.add('show');
+        showStatus(`✅ QR code generated successfully${data.hasLogo ? ' with logo' : ''}!`, 'success');
+
+        downloadBtn.onclick = () => {
+          const link = document.createElement('a');
+          link.href = data.qrDataUrl;
+          link.download = `QR-${productId}.png`;
+          link.click();
+        };
+
+      } catch (err) {
+        console.error('Generation error:', err);
+        showStatus(`❌ Error: ${err.message}`, 'error');
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = 'Generate QR Code';
+      }
+    });
+  </script>
 </body>
 </html>
