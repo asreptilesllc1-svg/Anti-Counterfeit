@@ -2,224 +2,149 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Generate Authentic QR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Generate Secure QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- QR Library (stable, proven CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
-          integrity="sha512-GhZ6nYl0pThKc9lUWyYHf+M8X+0PqvkpzxxEe7dBDEuDfSUdifYEYVplpXCMVvjJAnYXhYzu3PV6PvJ9P3UnxA=="
-          crossorigin="anonymous"
-          referrerpolicy="no-referrer"></script>
+  <!-- QR LIBRARY (STABLE CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <style>
-    :root {
-      --bg: #0b0f1a;
-      --panel: #12182a;
-      --accent: #00e5ff;
-      --text: #e6ecff;
-      --muted: #8b93b7;
-      --danger: #ff4d4d;
-    }
-
-    * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      font-family: Inter, system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at top, #12182a, #070a12);
-      color: var(--text);
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #e5e7eb;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
     }
 
     .card {
       width: 100%;
       max-width: 460px;
-      background: var(--panel);
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.15);
       border-radius: 16px;
       padding: 28px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      text-align: center;
     }
 
     h1 {
-      margin: 0 0 6px;
-      font-size: 1.4rem;
-      text-align: center;
+      margin: 0 0 8px;
+      font-size: 1.5rem;
+      letter-spacing: 0.5px;
     }
 
     p {
-      margin: 0 0 18px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    label {
-      display: block;
-      margin-top: 14px;
-      font-size: 0.75rem;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    input {
-      width: 100%;
-      margin-top: 6px;
-      padding: 12px;
-      background: #0c1224;
-      border: 1px solid #1d2550;
-      border-radius: 10px;
-      color: var(--text);
+      margin: 0 0 20px;
+      color: #94a3b8;
       font-size: 0.95rem;
     }
 
-    button {
-      margin-top: 22px;
+    textarea {
       width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #00e5ff, #2b8cff);
+      min-height: 120px;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #020617;
+      color: #e5e7eb;
+      padding: 12px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    textarea::placeholder {
+      color: #64748b;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
       border: none;
-      border-radius: 12px;
-      color: #000;
-      font-weight: 700;
-      cursor: pointer;
+      background: linear-gradient(135deg, #2563eb, #22d3ee);
+      color: #020617;
       font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
     }
 
     button:hover {
-      opacity: 0.9;
+      filter: brightness(1.1);
     }
 
-    .status {
-      margin-top: 14px;
-      text-align: center;
-      font-size: 0.85rem;
-    }
-
-    .error {
-      color: var(--danger);
-    }
-
-    .qr-wrap {
-      margin-top: 26px;
+    #qr-wrapper {
+      margin-top: 24px;
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      justify-content: center;
     }
 
-    #qrcode {
-      padding: 14px;
-      background: #fff;
+    #qr {
+      background: white;
+      padding: 12px;
       border-radius: 12px;
     }
 
-    .download {
-      margin-top: 14px;
-      font-size: 0.85rem;
-      color: var(--accent);
-      cursor: pointer;
-      text-decoration: underline;
+    .hint {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: #94a3b8;
     }
   </style>
 </head>
 <body>
 
   <div class="card">
-    <h1>Generate Authentic QR</h1>
-    <p>Creates a secure verification code for your product</p>
+    <h1>Secure QR Generator</h1>
+    <p>Paste a signed verification URL or token</p>
 
-    <label>PRODUCT ID</label>
-    <input id="pid" placeholder="e.g. SKU-001" />
-
-    <label>PRODUCT NAME</label>
-    <input id="pname" placeholder="e.g. Limited Edition Device" />
-
-    <label>BATCH</label>
-    <input id="batch" placeholder="e.g. B1" />
+    <textarea
+      id="input"
+      placeholder="Paste verification URL or signed token here"
+    ></textarea>
 
     <button onclick="generateQR()">Generate QR Code</button>
 
-    <div id="status" class="status"></div>
+    <div id="qr-wrapper">
+      <div id="qr"></div>
+    </div>
 
-    <div class="qr-wrap" id="qrWrap" style="display:none;">
-      <div id="qrcode"></div>
-      <div class="download" onclick="downloadQR()">Download QR</div>
+    <div class="hint">
+      Black & white QR for maximum scan reliability
     </div>
   </div>
 
-<script>
-  const BACKEND = "https://anti-counterfeit-backend-new.onrender.com";
+  <script>
+    function generateQR() {
+      const container = document.getElementById("qr");
+      container.innerHTML = "";
 
-  async function generateQR() {
-    const status = document.getElementById("status");
-    status.textContent = "";
-    status.className = "status";
+      if (typeof QRCode === "undefined") {
+        alert("QR library failed to load. Please refresh the page.");
+        return;
+      }
 
-    if (typeof QRCode === "undefined") {
-      status.textContent = "QR library failed to load. Refresh the page.";
-      status.classList.add("error");
-      return;
-    }
+      const value = document.getElementById("input").value.trim();
 
-    const id = document.getElementById("pid").value.trim();
-    const name = document.getElementById("pname").value.trim();
-    const batch = document.getElementById("batch").value.trim();
+      if (!value) {
+        alert("Please paste a token or URL first.");
+        return;
+      }
 
-    if (!id || !name || !batch) {
-      status.textContent = "Please fill all fields.";
-      status.classList.add("error");
-      return;
-    }
-
-    status.textContent = "Generating secure token…";
-
-    try {
-      const res = await fetch(BACKEND + "/sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name, batch })
-      });
-
-      if (!res.ok) throw new Error("Backend error");
-
-      const { signedToken } = await res.json();
-
-      const verifyURL =
-        "https://verify.myproductauth.com/verify.html?p=" +
-        encodeURIComponent(signedToken);
-
-      document.getElementById("qrcode").innerHTML = "";
-      new QRCode(document.getElementById("qrcode"), {
-        text: verifyURL,
-        width: 320,
-        height: 320,
+      new QRCode(container, {
+        text: value,
+        width: 256,
+        height: 256,
         colorDark: "#000000",
         colorLight: "#ffffff",
         correctLevel: QRCode.CorrectLevel.H
       });
-
-      document.getElementById("qrWrap").style.display = "flex";
-      status.textContent = "QR code generated successfully.";
-    } catch (err) {
-      console.error(err);
-      status.textContent = "Failed to generate QR code.";
-      status.classList.add("error");
     }
-  }
-
-  function downloadQR() {
-    const img = document.querySelector("#qrcode img");
-    if (!img) return;
-
-    const link = document.createElement("a");
-    link.href = img.src;
-    link.download = "authentic-qr.png";
-    link.click();
-  }
-</script>
+  </script>
 
 </body>
 </html>
-
