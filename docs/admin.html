@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard - Anti-Counterfeit System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #0a0a0f;
+      --bg-card: #16161d;
+      --bg-hover: #1e1e28;
+      --border: #2a2a35;
+      --text: #e8e8ee;
+      --text-dim: #a0a0ab;
+      --accent: #00f5ff;
+      --accent-dim: rgba(0, 245, 255, 0.1);
+      --success: #00ff88;
+      --warning: #ffb800;
+      --danger: #ff4444;
+      --purple: #a855f7;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Header */
+    header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 1rem 1.5rem;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      color: var(--text);
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-change {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .stat-change.positive {
+      color: var(--success);
+    }
+
+    .stat-change.negative {
+      color: var(--danger);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 1rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tr:hover {
+      background: var(--bg-hover);
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge.success {
+      background: rgba(0, 255, 136, 0.15);
+      color: var(--success);
+    }
+
+    .badge.warning {
+      background: rgba(255, 184, 0, 0.15);
+      color: var(--warning);
+    }
+
+    .badge.danger {
+      background: rgba(255, 68, 68, 0.15);
+      color: var(--danger);
+    }
+
+    .badge.info {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    /* Button */
+    .btn {
+      padding: 0.5rem 1rem;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--accent);
+      color: var(--bg-dark);
+      border-color: var(--accent);
+    }
+
+    .btn.danger {
+      background: rgba(255, 68, 68, 0.15);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn.danger:hover {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn.success {
+      background: rgba(0, 255, 136, 0.15);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .btn.success:hover {
+      background: var(--success);
+      color: var(--bg-dark);
+    }
+
+    /* Search */
+    .search-box {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Chart Container */
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-top: 1rem;
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-dim);
+    }
+
+    .spinner {
+      border: 3px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-dim);
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      header {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        gap: 0.5rem;
+      }
+
+      .tab {
+        padding: 0.75rem 1rem;
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Anti-Counterfeit Admin Dashboard</h1>
+    <p class="subtitle">Monitor and manage your product authentication system</p>
+  </header>
+
+  <div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('overview')">Overview</button>
+      <button class="tab" onclick="showTab('products')">Products</button>
+      <button class="tab" onclick="showTab('verifications')">Verifications</button>
+      <button class="tab" onclick="showTab('analytics')">Analytics</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overview" class="tab-content active">
+      <div class="stats-grid" id="statsGrid">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading statistics...</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Recent Activity</h2>
+        </div>
+        <div id="recentActivity">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading activity...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Products Tab -->
+    <div id="products" class="tab-content">
+      <div class="search-box">
+        <input type="text" id="productSearch" placeholder="Search products by ID or name..." onkeyup="searchProducts()">
+      </div>
+
+      <div class="card">
+        <div class="table-container" id="productsTable">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading products...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verifications Tab -->
+    <div id="verifications" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Recent Verifications</h2>
+          <select id="riskFilter" onchange="filterVerifications()" class="btn">
+            <option value="">All Risk Levels</option>
+            <option value="low">Low Risk</option>
+            <option value="medium">Medium Risk</option>
+            <option value="high">High Risk</option>
+          </select>
+        </div>
+        <div class="table-container" id="verificationsTable">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading verifications...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics Tab -->
+    <div id="analytics" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Verifications Over Time</h2>
+        </div>
+        <div class="chart-container">
+          <canvas id="timeChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Top Products</h2>
+        </div>
+        <div id="topProducts">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading analytics...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+    let allProducts = [];
+    let allVerifications = [];
+
+    // Tab Switching
+    function showTab(tabName) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // Show selected tab
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+
+      // Load data for tab
+      if (tabName === 'overview') loadOverview();
+      if (tabName === 'products') loadProducts();
+      if (tabName === 'verifications') loadVerifications();
+      if (tabName === 'analytics') loadAnalytics();
+    }
+
+    // Load Overview
+    async function loadOverview() {
+      try {
+        const response = await fetch(`${API_URL}/analytics/overview`);
+        const stats = await response.json();
+
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-label">Total Products</div>
+            <div class="stat-value" style="color: var(--accent);">${stats.total_products || 0}</div>
+            <div class="stat-change">${stats.active_products || 0} active</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Verifications</div>
+            <div class="stat-value" style="color: var(--success);">${stats.total_verifications || 0}</div>
+            <div class="stat-change">${stats.verifications_today || 0} today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">High Risk Scans</div>
+            <div class="stat-value" style="color: var(--danger);">${stats.high_risk_verifications || 0}</div>
+            <div class="stat-change">Requires attention</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">System Status</div>
+            <div class="stat-value" style="color: var(--success); font-size: 1.5rem;">✓ Online</div>
+            <div class="stat-change">All systems operational</div>
+          </div>
+        `;
+
+        // Load recent verifications
+        const verifsResponse = await fetch(`${API_URL}/verifications?limit=5`);
+        const verifs = await verifsResponse.json();
+
+        if (verifs.verifications && verifs.verifications.length > 0) {
+          document.getElementById('recentActivity').innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Product ID</th>
+                  <th>Time</th>
+                  <th>Risk</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${verifs.verifications.map(v => `
+                  <tr>
+                    <td><strong>${v.product_id}</strong></td>
+                    <td>${new Date(v.verified_at).toLocaleString()}</td>
+                    <td><span class="badge ${v.risk_level}">${v.risk_level || 'unknown'}</span></td>
+                    <td><span class="badge ${v.is_valid ? 'success' : 'danger'}">${v.is_valid ? 'Valid' : 'Invalid'}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          document.getElementById('recentActivity').innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📊</div>
+              <p>No verifications yet</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading overview:', err);
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-label">Error</div>
+            <div class="stat-value" style="color: var(--danger); font-size: 1rem;">Failed to load data</div>
+          </div>
+        `;
+      }
+    }
+
+    // Load Products
+    async function loadProducts() {
+      try {
+        const response = await fetch(`${API_URL}/products?limit=100`);
+        const data = await response.json();
+        allProducts = data.products || [];
+
+        if (allProducts.length > 0) {
+          renderProducts(allProducts);
+        } else {
+          document.getElementById('productsTable').innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📦</div>
+              <p>No products yet. Generate your first QR code!</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading products:', err);
+        document.getElementById('productsTable').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">❌</div>
+            <p>Failed to load products</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderProducts(products) {
+      document.getElementById('productsTable').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Product ID</th>
+              <th>Name</th>
+              <th>Batch</th>
+              <th>Verifications</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(p => `
+              <tr>
+                <td><strong>${p.product_id}</strong></td>
+                <td>${p.name || 'N/A'}</td>
+                <td>${p.batch || 'N/A'}</td>
+                <td>${p.total_verifications || 0}</td>
+                <td><span class="badge ${p.is_active ? 'success' : 'danger'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                  ${p.is_active 
+                    ? `<button class="btn danger" onclick="deactivateProduct('${p.product_id}')">Deactivate</button>`
+                    : `<button class="btn success" onclick="activateProduct('${p.product_id}')">Activate</button>`
+                  }
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function searchProducts() {
+      const query = document.getElementById('productSearch').value.toLowerCase();
+      const filtered = allProducts.filter(p => 
+        p.product_id.toLowerCase().includes(query) ||
+        (p.name && p.name.toLowerCase().includes(query))
+      );
+      renderProducts(filtered);
+    }
+
+    async function deactivateProduct(productId) {
+      if (!confirm(`Deactivate product ${productId}? This will mark it as invalid.`)) return;
+
+      try {
+        const response = await fetch(`${API_URL}/products/${productId}/deactivate`, {
+          method: 'POST'
+        });
+        
+        if (response.ok) {
+          alert('Product deactivated successfully!');
+          loadProducts();
+        } else {
+          alert('Failed to deactivate product');
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        alert('Error deactivating product');
+      }
+    }
+
+    async function activateProduct(productId) {
+      try {
+        const response = await fetch(`${API_URL}/products/${productId}/activate`, {
+          method: 'POST'
+        });
+        
+        if (response.ok) {
+          alert('Product activated successfully!');
+          loadProducts();
+        } else {
+          alert('Failed to activate product');
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        alert('Error activating product');
+      }
+    }
+
+    // Load Verifications
+    async function loadVerifications() {
+      try {
+        const response = await fetch(`${API_URL}/verifications?limit=100`);
+        const data = await response.json();
+        allVerifications = data.verifications || [];
+
+        if (allVerifications.length > 0) {
+          renderVerifications(allVerifications);
+        } else {
+          document.getElementById('verificationsTable').innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">🔍</div>
+              <p>No verifications yet</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading verifications:', err);
+        document.getElementById('verificationsTable').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">❌</div>
+            <p>Failed to load verifications</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderVerifications(verifications) {
+      document.getElementById('verificationsTable').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Product ID</th>
+              <th>Time</th>
+              <th>IP Address</th>
+              <th>Risk Level</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${verifications.map(v => `
+              <tr>
+                <td><strong>${v.product_id}</strong></td>
+                <td>${new Date(v.verified_at).toLocaleString()}</td>
+                <td>${v.ip_address || 'Unknown'}</td>
+                <td><span class="badge ${v.risk_level}">${v.risk_level || 'unknown'}</span></td>
+                <td><span class="badge ${v.is_valid ? 'success' : 'danger'}">${v.is_valid ? 'Valid' : 'Invalid'}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function filterVerifications() {
+      const risk = document.getElementById('riskFilter').value;
+      const filtered = risk 
+        ? allVerifications.filter(v => v.risk_level === risk)
+        : allVerifications;
+      renderVerifications(filtered);
+    }
+
+    // Load Analytics
+    let timeChart = null;
+
+    async function loadAnalytics() {
+      try {
+        // Load chart data
+        const response = await fetch(`${API_URL}/analytics/by-date?days=30`);
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+          const ctx = document.getElementById('timeChart').getContext('2d');
+          
+          if (timeChart) {
+            timeChart.destroy();
+          }
+
+          timeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: data.map(d => new Date(d.date).toLocaleDateString()),
+              datasets: [{
+                label: 'Verifications',
+                data: data.map(d => d.total_verifications),
+                borderColor: 'rgb(0, 245, 255)',
+                backgroundColor: 'rgba(0, 245, 255, 0.1)',
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: { color: '#e8e8ee' }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { color: '#a0a0ab' },
+                  grid: { color: '#2a2a35' }
+                },
+                x: {
+                  ticks: { color: '#a0a0ab' },
+                  grid: { color: '#2a2a35' }
+                }
+              }
+            }
+          });
+        }
+
+        // Load top products
+        const topResponse = await fetch(`${API_URL}/analytics/by-product`);
+        const topData = await topResponse.json();
+
+        if (topData && topData.length > 0) {
+          document.getElementById('topProducts').innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Product ID</th>
+                  <th>Name</th>
+                  <th>Verifications</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${topData.slice(0, 10).map(p => `
+                  <tr>
+                    <td><strong>${p.product_id}</strong></td>
+                    <td>${p.name || 'N/A'}</td>
+                    <td><span class="badge info">${p.verification_count}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          document.getElementById('topProducts').innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📊</div>
+              <p>No data available yet</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading analytics:', err);
+      }
+    }
+
+    // Load initial data
+    loadOverview();
+  </script>
+</body>
+</html>
