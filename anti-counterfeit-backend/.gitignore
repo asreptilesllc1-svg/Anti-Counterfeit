@@ -1,25 +1,13 @@
-
-private.pem
-
-new_private.pem
-private.pem
+node_modules/
 .env
+.DS_Store
+*.log
+
+# Cryptographic keys — never commit these
+private.pem
+public.pem
 Key/
 
-private.pem
-new_private.pem
-.env
-Key/
-
-# ignore local private keys and env
-private.pem
-new_private.pem
-.env
-Key/
-
-# ignore private keys
-private.pem
-new_private.pem.env
-Key/
-
-private.pem
+# Local test artifacts
+product-qr.png
+signedToken.png
