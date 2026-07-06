@@ -19,6 +19,7 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const PUBLIC_KEY = process.env.PUBLIC_KEY;
 const PORT = process.env.PORT || 10000;
 const VERIFY_BASE_URL = process.env.VERIFY_BASE_URL || "https://verify.myproductauth.com";
+const EXPORT_KEY = process.env.EXPORT_KEY;
 const LOGO_PATH = "./logo.png";
 
 const pool = new Pool({
@@ -110,8 +111,8 @@ app.get("/", async (req, res) => {
       message: "Anti-counterfeit backend running",
       database: "connected",
       timestamp: dbCheck.rows[0].now,
-      endpoints: ["/sign-qr", "/sign-qr-with-logo", "/verify-token", "/products", "/verifications", "/analytics"],
-      version: "1.0.0",
+      endpoints: ["/sign-qr", "/sign-qr-with-logo", "/verify-token", "/products", "/verifications", "/analytics", "/export/products", "/export/verifications"],
+      version: "1.1.0",
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: "Database connection failed", error: err.message });
@@ -480,6 +481,83 @@ app.get("/analytics/by-product", async (req, res) => {
 });
 
 // ================================
+// BACKUP / EXPORT
+// ================================
+function checkExportKey(req, res) {
+  const providedKey = req.query.key;
+  if (!EXPORT_KEY) {
+    res.status(500).json({ error: "EXPORT_KEY not configured on server" });
+    return false;
+  }
+  if (!providedKey || providedKey !== EXPORT_KEY) {
+    res.status(403).json({ error: "Invalid or missing export key" });
+    return false;
+  }
+  return true;
+}
+
+function toCSV(rows) {
+  if (rows.length === 0) return "";
+  const headers = Object.keys(rows[0]);
+  const escape = (val) => {
+    if (val === null || val === undefined) return "";
+    const str = typeof val === "object" ? JSON.stringify(val) : String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((h) => escape(row[h])).join(","));
+  }
+  return lines.join("\n");
+}
+
+// Full backup of every product: includes qr_data_url (the actual QR image)
+// and signed_token (what the QR encodes). This is the critical data to
+// keep an off-site copy of for anything tagging physical merchandise.
+app.get("/export/products", async (req, res) => {
+  if (!checkExportKey(req, res)) return;
+
+  try {
+    const result = await pool.query("SELECT * FROM products ORDER BY created_at ASC");
+    const format = req.query.format === "csv" ? "csv" : "json";
+
+    if (format === "csv") {
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="products-backup-${Date.now()}.csv"`);
+      return res.send(toCSV(result.rows));
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="products-backup-${Date.now()}.json"`);
+    res.json({ exportedAt: new Date().toISOString(), count: result.rows.length, products: result.rows });
+  } catch (err) {
+    console.error("Error exporting products:", err);
+    res.status(500).json({ error: "Failed to export products" });
+  }
+});
+
+// Full backup of every verification/scan event (the audit trail)
+app.get("/export/verifications", async (req, res) => {
+  if (!checkExportKey(req, res)) return;
+
+  try {
+    const result = await pool.query("SELECT * FROM verifications ORDER BY verified_at ASC");
+    const format = req.query.format === "csv" ? "csv" : "json";
+
+    if (format === "csv") {
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="verifications-backup-${Date.now()}.csv"`);
+      return res.send(toCSV(result.rows));
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="verifications-backup-${Date.now()}.json"`);
+    res.json({ exportedAt: new Date().toISOString(), count: result.rows.length, verifications: result.rows });
+  } catch (err) {
+    console.error("Error exporting verifications:", err);
+    res.status(500).json({ error: "Failed to export verifications" });
+  }
+});
+
+// ================================
 // START SERVER
 // ================================
 app.listen(PORT, () => {
@@ -491,6 +569,12 @@ app.listen(PORT, () => {
   console.log(`   POST /verify-token           - Verify authenticity`);
   console.log(`   GET  /products               - List products`);
   console.log(`   GET  /analytics/overview     - Analytics`);
+  console.log(`   GET  /export/products        - Backup export (requires EXPORT_KEY)`);
+  console.log(`   GET  /export/verifications   - Backup export (requires EXPORT_KEY)`);
+
+  if (!EXPORT_KEY) {
+    console.warn(`⚠️  WARNING: EXPORT_KEY not set - backup export endpoints are disabled`);
+  }
 
   if (!PRIVATE_KEY || !PUBLIC_KEY) {
     console.warn(`⚠️  WARNING: Keys not set!`);

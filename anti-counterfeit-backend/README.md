@@ -36,3 +36,15 @@ npm start
 - `GET /products` — list tracked products
 - `GET /verifications` — scan history
 - `GET /analytics/overview` — summary stats
+- `GET /export/products?key=YOUR_EXPORT_KEY&format=json|csv` — full backup of every product (includes the QR image and signed token)
+- `GET /export/verifications?key=YOUR_EXPORT_KEY&format=json|csv` — full backup of every scan/verification event
+
+## Backups (important if tagging real merchandise)
+- Set an `EXPORT_KEY` environment variable in Render — a long random string only you know. Without it, the export endpoints are disabled.
+- Periodically download a backup:
+  ```
+  https://your-backend.onrender.com/export/products?key=YOUR_EXPORT_KEY&format=json
+  ```
+  Save the file somewhere outside of Render/Supabase entirely (cloud drive, external storage).
+- **Never rotate `PRIVATE_KEY`/`PUBLIC_KEY` after tagging real merchandise** — doing so permanently invalidates every QR code already printed. Back up both `.pem` files somewhere secure and durable (password manager, encrypted drive) and treat them as permanent for this product line.
+- On Supabase, the free tier has no automatic backups and pauses projects after 7 days of inactivity — upgrade to Pro before relying on this for real inventory.
