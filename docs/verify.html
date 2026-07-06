@@ -98,13 +98,10 @@
 
   .result-icon svg { width: 44px; height: 44px; overflow: visible; }
 
-  /* Checkmark draw-in */
+  /* Checkmark draw-in — dasharray/dashoffset set dynamically in JS to match the real path length */
   .checkmark-path {
-    stroke-dasharray: 48;
-    stroke-dashoffset: 48;
-    animation: drawCheck 0.5s 0.15s ease forwards;
+    transition: stroke-dashoffset 0.5s ease;
   }
-  @keyframes drawCheck { to { stroke-dashoffset: 0; } }
 
   /* Warning icon wobble */
   .result-icon.warning.show { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, wobble 0.6s 0.45s ease; }
@@ -203,17 +200,46 @@ const ICONS = {
 
 function showResult(type, text) {
   spinnerEl.style.display = "none";
-  resultIconEl.className = `result-icon ${type} show`;
+
+  // Set up the icon WITHOUT the animating classes yet, so the browser
+  // registers this as the "before" state.
+  resultIconEl.className = `result-icon ${type}`;
   resultIconEl.innerHTML = ICONS[type];
-  pulseRingEl.className = "pulse-ring active";
-  pulseRingEl.style.color = type === "success" ? "#00ffcc" : type === "warning" ? "#ffcc00" : "#ff4d4d";
+
+  if (type === "success") {
+    const path = resultIconEl.querySelector(".checkmark-path");
+    if (path) {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+    }
+  }
+
+  // Force the browser to paint the "before" state, THEN add the
+  // animating classes on the next frame so the animation actually plays
+  // from its starting keyframe instead of skipping straight to the end.
+  resultIconEl.offsetHeight; // force reflow
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      resultIconEl.classList.add("show");
+      pulseRingEl.className = "pulse-ring active";
+      pulseRingEl.style.color = type === "success" ? "#00ffcc" : type === "warning" ? "#ffcc00" : "#ff4d4d";
+
+      if (type === "success") {
+        const path = resultIconEl.querySelector(".checkmark-path");
+        if (path) path.style.strokeDashoffset = "0";
+      }
+    });
+  });
 
   statusEl.textContent = text;
   statusEl.className = `status ${type}-text`;
+  statusEl.style.animation = "none";
+  statusEl.offsetHeight;
   statusEl.style.animation = "fadeUp 0.4s 0.2s ease forwards";
 
   if (type === "success") {
-    launchSparkles();
+    setTimeout(launchSparkles, 80);
   }
   if (type === "error") {
     cardEl.classList.add("shake");
