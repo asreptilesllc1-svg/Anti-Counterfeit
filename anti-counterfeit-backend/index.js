@@ -95,7 +95,7 @@ const EXPORT_KEY = process.env.EXPORT_KEY; // platform-level full-backup key (yo
 const ADMIN_KEY = process.env.ADMIN_KEY;   // platform-level superadmin key (you, not customers)
 const LOGO_PATH = "./logo.png";
 
-const PLAN_LIMITS = { starter: 50, growth: 250, business: 1500 };
+const PLAN_LIMITS = { free: 5, starter: 50, growth: 250, business: 1500 };
 const STRIPE_PRICE_IDS = {
   starter: process.env.STRIPE_PRICE_STARTER,
   growth: process.env.STRIPE_PRICE_GROWTH,
@@ -293,16 +293,22 @@ const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
 
 async function enforceProductQuota(req, res, next) {
   try {
-    const result = await pool.query(
-      "SELECT COUNT(*) as count FROM products WHERE account_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)",
-      [req.account.id]
-    );
-    const usedThisMonth = parseInt(result.rows[0].count);
-    if (usedThisMonth >= req.account.plan_product_limit) {
+    // Free plan: lifetime cap (an evaluation tier, not a small forever-plan).
+    // Paid plans: resets monthly.
+    const isFree = req.account.plan === "free";
+    const query = isFree
+      ? "SELECT COUNT(*) as count FROM products WHERE account_id = $1"
+      : "SELECT COUNT(*) as count FROM products WHERE account_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)";
+    const result = await pool.query(query, [req.account.id]);
+    const used = parseInt(result.rows[0].count);
+    if (used >= req.account.plan_product_limit) {
       return res.status(403).json({
-        error: `Monthly product limit reached (${req.account.plan_product_limit} on the ${req.account.plan} plan). Upgrade to add more.`,
-        usedThisMonth,
+        error: isFree
+          ? `Free plan limit reached (${req.account.plan_product_limit} products total). Upgrade to a paid plan to keep going.`
+          : `Monthly product limit reached (${req.account.plan_product_limit} on the ${req.account.plan} plan). Upgrade to add more.`,
+        used,
         limit: req.account.plan_product_limit,
+        plan: req.account.plan,
       });
     }
     next();
@@ -340,8 +346,8 @@ app.post("/signup", authLimiter, async (req, res) => {
     const passwordHash = hashPassword(password);
     const result = await pool.query(
       `INSERT INTO accounts (email, password_hash, api_key, business_name, plan, plan_product_limit, subscription_status)
-       VALUES ($1, $2, $3, $4, 'starter', $5, 'trialing') RETURNING id, email, business_name, plan, api_key`,
-      [email.toLowerCase(), passwordHash, apiKey, businessName || null, PLAN_LIMITS.starter]
+       VALUES ($1, $2, $3, $4, 'free', $5, 'active') RETURNING id, email, business_name, plan, api_key`,
+      [email.toLowerCase(), passwordHash, apiKey, businessName || null, PLAN_LIMITS.free]
     );
     console.log(`✅ New account signed up: ${email}`);
     res.status(201).json({ message: "Account created", account: result.rows[0] });

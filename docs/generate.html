@@ -501,10 +501,42 @@
     function getApiKey() {
       const key = sessionStorage.getItem('apiKey');
       if (!key) {
+        saveFormDraft();
         window.location.href = 'login.html?next=' + encodeURIComponent(window.location.pathname);
         return null;
       }
       return key;
+    }
+
+    // Preserve whatever the user has typed so a login redirect never loses their work.
+    function saveFormDraft() {
+      try {
+        sessionStorage.setItem('qrFormDraft', JSON.stringify({
+          productId: document.getElementById('productId').value,
+          productName: document.getElementById('productName').value,
+          productBatch: document.getElementById('productBatch').value,
+        }));
+      } catch (e) { /* non-critical */ }
+    }
+
+    function restoreFormDraft() {
+      try {
+        const draft = sessionStorage.getItem('qrFormDraft');
+        if (!draft) return;
+        const d = JSON.parse(draft);
+        if (d.productId) document.getElementById('productId').value = d.productId;
+        if (d.productName) document.getElementById('productName').value = d.productName;
+        if (d.productBatch) document.getElementById('productBatch').value = d.productBatch;
+        sessionStorage.removeItem('qrFormDraft');
+      } catch (e) { /* non-critical */ }
+    }
+
+    // Require login BEFORE the user starts typing, not after they hit Generate.
+    // This is the primary fix: no one fills out a form they aren't allowed to submit.
+    if (!sessionStorage.getItem('apiKey')) {
+      window.location.href = 'login.html?next=' + encodeURIComponent(window.location.pathname);
+    } else {
+      restoreFormDraft();
     }
     
     const form = document.getElementById('qrForm');

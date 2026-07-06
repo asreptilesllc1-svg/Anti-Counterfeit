@@ -343,8 +343,9 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   /* ===== Pricing ===== */
-  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-  @media (max-width: 860px) { .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } }
+  .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 980px) { .pricing-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } }
 
   .plan {
     background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--radius);
@@ -594,6 +595,18 @@
     </div>
     <div class="pricing-grid reveal">
       <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0</div>
+        <div class="plan-desc">Try it on your first pieces.</div>
+        <ul class="plan-features">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>5 products total</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Full verification experience</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Scan history &amp; risk flags</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>No card required</li>
+        </ul>
+        <a href="signup.html" class="btn btn-secondary">Start free</a>
+      </div>
+      <div class="plan">
         <div class="plan-name">Starter</div>
         <div class="plan-price">$19<span>/mo</span></div>
         <div class="plan-desc">For small runs and first drops.</div>
@@ -603,7 +616,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Scan history &amp; risk flags</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>CSV/JSON export</li>
         </ul>
-        <a href="#get-started" class="btn btn-secondary">Start free</a>
+        <a href="signup.html" class="btn btn-secondary">Get started</a>
       </div>
       <div class="plan featured">
         <div class="plan-tag">Most popular</div>
@@ -616,7 +629,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Logo-embedded QR codes</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Priority support</li>
         </ul>
-        <a href="#get-started" class="btn btn-primary">Start free</a>
+        <a href="signup.html" class="btn btn-primary">Get started</a>
       </div>
       <div class="plan">
         <div class="plan-name">Business</div>
@@ -628,7 +641,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Full API access</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Dedicated support</li>
         </ul>
-        <a href="#get-started" class="btn btn-secondary">Start free</a>
+        <a href="signup.html" class="btn btn-secondary">Get started</a>
       </div>
     </div>
   </div>

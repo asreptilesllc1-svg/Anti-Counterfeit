@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_verifications_account_id ON verifications(account
 -- This preserves any products/verifications created before multi-tenancy existed
 -- (your own testing data, e.g. TEST-001) so nothing is lost.
 INSERT INTO accounts (email, password_hash, api_key, business_name, plan, plan_product_limit, subscription_status, is_active)
-VALUES ('legacy@internal', 'not-a-real-login', 'legacy-migration-key-not-usable', 'Legacy Data', 'business', 999999, 'active', true)
+VALUES ('legacy@internal', 'not-a-real-login', 'pk_revoked_' || md5(random()::text || clock_timestamp()::text), 'Legacy Data', 'business', 999999, 'canceled', false)
 ON CONFLICT (email) DO NOTHING;
 
 UPDATE products SET account_id = (SELECT id FROM accounts WHERE email = 'legacy@internal') WHERE account_id IS NULL;
