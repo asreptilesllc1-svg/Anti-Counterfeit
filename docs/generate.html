@@ -496,10 +496,12 @@
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
 
     // Each account uses its own API key, set during login (see login.html).
+    // If there's no key in this session, send them to log in, then bring them
+    // right back to this same page afterward.
     function getApiKey() {
       const key = sessionStorage.getItem('apiKey');
       if (!key) {
-        window.location.href = 'login.html';
+        window.location.href = 'login.html?next=' + encodeURIComponent(window.location.pathname);
         return null;
       }
       return key;

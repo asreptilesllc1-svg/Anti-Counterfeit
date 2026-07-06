@@ -109,7 +109,11 @@
 
       sessionStorage.setItem('apiKey', data.apiKey);
       sessionStorage.setItem('businessName', data.businessName || '');
-      window.location.href = 'admin.html';
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next');
+      // Only allow same-site relative paths - never redirect to an external URL
+      const safeNext = next && !next.includes('://') ? next : 'admin.html';
+      window.location.href = safeNext.startsWith('/') ? safeNext.slice(1) : safeNext;
     } catch (err) {
       msg.className = 'msg error';
       msg.textContent = err.message;

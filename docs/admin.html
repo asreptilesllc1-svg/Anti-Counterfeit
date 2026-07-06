@@ -382,8 +382,16 @@
 
 <body>
   <header>
-    <h1>Anti-Counterfeit Admin Dashboard</h1>
-    <p class="subtitle">Monitor and manage your product authentication system</p>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+      <div>
+        <h1>Anti-Counterfeit Admin Dashboard</h1>
+        <p class="subtitle">Monitor and manage your product authentication system</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <a href="generate.html" style="padding:10px 18px; border-radius:8px; background:#4f46e5; color:#fff; text-decoration:none; font-weight:600; font-size:14px;">+ Generate QR Code</a>
+        <a href="#" id="logoutLink" style="padding:10px 18px; border-radius:8px; border:1px solid #d1d5db; color:#374151; text-decoration:none; font-weight:600; font-size:14px;">Log out</a>
+      </div>
+    </div>
   </header>
 
   <div class="container">
@@ -486,11 +494,12 @@
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
 
     // Each account uses its own API key, set during login (see login.html).
-    // If there's no key in this session, send them to log in first.
+    // If there's no key in this session, send them to log in, then bring them
+    // right back to this same page afterward instead of always landing on admin.html.
     function getApiKey() {
       const key = sessionStorage.getItem('apiKey');
       if (!key) {
-        window.location.href = 'login.html';
+        window.location.href = 'login.html?next=' + encodeURIComponent(window.location.pathname);
         return null;
       }
       return key;
@@ -505,10 +514,17 @@
       const response = await fetch(url, options);
       if (response.status === 401 || response.status === 403) {
         sessionStorage.removeItem('apiKey');
-        window.location.href = 'login.html';
+        window.location.href = 'login.html?next=' + encodeURIComponent(window.location.pathname);
       }
       return response;
     }
+
+    document.getElementById('logoutLink')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      sessionStorage.removeItem('apiKey');
+      window.location.href = 'login.html';
+    });
+
     let allProducts = [];
     let allVerifications = [];
 
