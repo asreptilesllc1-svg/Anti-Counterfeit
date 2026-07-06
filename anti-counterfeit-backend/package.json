@@ -1,14 +1,14 @@
 {
   "name": "anti-counterfeit-backend",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Anti-counterfeit QR verification backend with JWT signing, PostgreSQL tracking, and optional logo overlay",
+  "description": "Multi-tenant anti-counterfeit QR verification SaaS backend with JWT signing, PostgreSQL, Stripe billing, and blockchain inscription support",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["qr", "authentication", "anti-counterfeit", "jwt", "postgresql"],
+  "keywords": ["qr", "authentication", "anti-counterfeit", "jwt", "postgresql", "saas", "stripe"],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -17,7 +17,8 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "stripe": "^17.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>ProductAuth — Proof your product is real</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Give every product a cryptographic mark no one can fake. Instant QR verification for physical and digital goods, with optional permanent blockchain proof." />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #14171c;
+    --panel: #1b1f26;
+    --panel-2: #21252d;
+    --hairline: rgba(237, 238, 240, 0.09);
+    --hairline-strong: rgba(237, 238, 240, 0.18);
+    --text: #edeef0;
+    --text-muted: #979da8;
+    --text-faint: #575d68;
+    --brass: #c9a227;
+    --brass-bright: #e0bc4a;
+    --brass-dim: #8a7025;
+    --brass-ink: #1a1508;
+    --teal: #3fa7a0;
+    --teal-bright: #58c7bf;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --font-display: "Fraunces", serif;
+    --font-body: "IBM Plex Sans", -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background:
+      radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(201, 162, 39, 0.07), transparent),
+      var(--ink);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+    background-image: radial-gradient(rgba(237,238,240,0.035) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  ::selection { background: rgba(201, 162, 39, 0.3); color: var(--text); }
+
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--teal-bright);
+    outline-offset: 3px;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== Reveal-on-scroll ===== */
+  .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+  }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* ===== Nav ===== */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(20, 23, 28, 0.78);
+    backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid var(--hairline);
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  nav.scrolled { border-color: var(--hairline-strong); background: rgba(20, 23, 28, 0.94); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 66px; }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 19px;
+    color: var(--text);
+    text-decoration: none;
+    letter-spacing: -0.01em;
+  }
+  .brand-mark { width: 26px; height: 26px; flex-shrink: 0; }
+
+  .nav-links { display: flex; gap: 30px; align-items: center; }
+  .nav-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14.5px;
+    transition: color 0.2s ease;
+    position: relative;
+  }
+  .nav-links a:not(.nav-cta)::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -20px;
+    height: 2px;
+    background: var(--brass);
+    transform: scaleX(0);
+    transition: transform 0.25s var(--ease);
+  }
+  .nav-links a:not(.nav-cta):hover::after { transform: scaleX(1); }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--brass);
+    color: var(--brass-ink) !important;
+    padding: 9px 18px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 13.5px !important;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .nav-cta:hover { background: var(--brass-bright) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.25); }
+
+  @media (max-width: 720px) {
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
+
+  /* ===== Hero ===== */
+  .hero { padding: 108px 0 84px; position: relative; overflow: hidden; }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
+  @media (max-width: 860px) {
+    .hero .wrap { grid-template-columns: 1fr; text-align: left; }
+    .hero { padding: 56px 0 44px; }
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--teal-bright);
+    background: rgba(63, 167, 160, 0.1);
+    border: 1px solid rgba(63, 167, 160, 0.28);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 26px;
+  }
+  .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--teal-bright); box-shadow: 0 0 8px var(--teal-bright); }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(38px, 5.2vw, 58px);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    margin-bottom: 24px;
+  }
+  h1 em { font-style: normal; color: var(--brass-bright); }
+
+  .hero-sub { font-size: 18px; color: var(--text-muted); max-width: 480px; margin-bottom: 36px; }
+
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 30px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 26px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    transition: all 0.22s var(--ease);
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  .btn-primary { background: var(--brass); color: var(--brass-ink); box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset; }
+  .btn-primary:hover { background: var(--brass-bright); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(201,162,39,0.3), 0 1px 0 rgba(255,255,255,0.2) inset; }
+  .btn-secondary { background: transparent; color: var(--text); border-color: var(--hairline-strong); }
+  .btn-secondary:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.03); }
+
+  .trust-line { font-size: 12.5px; color: var(--text-faint); font-family: var(--font-mono); letter-spacing: 0.01em; }
+
+  /* ===== Seal graphic ===== */
+  .seal-stage { position: relative; display: flex; align-items: center; justify-content: center; height: 340px; }
+  .seal-ripple {
+    position: absolute; width: 220px; height: 220px; border-radius: 50%;
+    border: 1px solid rgba(201, 162, 39, 0.35); opacity: 0;
+  }
+  .seal-ripple.play { animation: rippleOut 1.2s var(--ease) 0.55s both; }
+  @keyframes rippleOut {
+    0% { transform: scale(0.55); opacity: 0.7; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+  .seal {
+    position: relative; width: 216px; height: 216px;
+    opacity: 0; transform: translateY(-44px) scale(1.16);
+    filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+  }
+  .seal.drop { animation: sealDrop 0.65s cubic-bezier(0.34, 1.15, 0.5, 1) 0.15s forwards; }
+  @keyframes sealDrop {
+    0% { opacity: 0; transform: translateY(-54px) scale(1.22); }
+    58% { opacity: 1; transform: translateY(5px) scale(0.96); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .seal-dust {
+    position: absolute; width: 240px; height: 240px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,162,39,0.25), transparent 70%);
+    opacity: 0; transform: scale(0.7);
+  }
+  .seal-dust.play { animation: dustPop 0.5s ease-out 0.62s forwards; }
+  @keyframes dustPop {
+    0% { opacity: 0.8; transform: scale(0.7); }
+    100% { opacity: 0; transform: scale(1.3); }
+  }
+
+  /* ===== Sections ===== */
+  section { padding: 96px 0; border-top: 1px solid var(--hairline); position: relative; }
+  .section-head { max-width: 620px; margin-bottom: 56px; }
+  .section-label {
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--brass-bright); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-label::before { content: ""; width: 18px; height: 1px; background: var(--brass-dim); }
+  h2 {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(28px, 3.4vw, 38px); line-height: 1.15; letter-spacing: -0.01em; margin-bottom: 16px;
+  }
+  .section-sub { color: var(--text-muted); font-size: 16.5px; }
+
+  /* ===== Problem stats ===== */
+  .stat-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden;
+  }
+  @media (max-width: 700px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat { background: var(--panel); padding: 34px 30px; transition: background 0.25s ease; }
+  .stat:hover { background: var(--panel-2); }
+  .stat-num {
+    font-family: var(--font-display); font-size: 42px; font-weight: 600;
+    color: var(--brass-bright); display: block; margin-bottom: 8px; letter-spacing: -0.01em;
+  }
+  .stat-label { color: var(--text-muted); font-size: 13.5px; line-height: 1.5; }
+
+  /* ===== How it works ===== */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; position: relative; }
+  @media (max-width: 780px) { .steps { grid-template-columns: 1fr; gap: 36px; } }
+  .step { position: relative; padding-top: 8px; }
+  .step-num {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--teal-bright);
+    margin-bottom: 16px; display: block; letter-spacing: 0.04em;
+  }
+  .step h3 { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.005em; }
+  .step p { color: var(--text-muted); font-size: 14.5px; }
+
+  /* ===== Icons (custom line icons, not emoji) ===== */
+  .icon-badge {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: rgba(201, 162, 39, 0.1);
+    border: 1px solid rgba(201, 162, 39, 0.28);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px; color: var(--brass-bright);
+    transition: transform 0.25s var(--ease), background 0.25s ease;
+  }
+  .icon-badge svg { width: 20px; height: 20px; }
+
+  /* ===== Benefits grid ===== */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 780px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 540px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--radius);
+    padding: 28px; transition: border-color 0.25s ease, transform 0.25s var(--ease), background 0.25s ease;
+  }
+  .card:hover { border-color: var(--hairline-strong); transform: translateY(-3px); background: var(--panel-2); }
+  .card:hover .icon-badge { transform: scale(1.08); background: rgba(201, 162, 39, 0.16); }
+  .card h3 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 9px; letter-spacing: -0.005em; }
+  .card p { color: var(--text-muted); font-size: 14.5px; }
+
+  /* ===== Who it's for ===== */
+  .use-cases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 780px) { .use-cases { grid-template-columns: repeat(2, 1fr); } }
+  .use-case {
+    border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    padding: 22px 18px; text-align: center; transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .use-case:hover { border-color: var(--hairline-strong); background: var(--panel); }
+  .use-case .icon-badge { margin: 0 auto 14px; }
+  .use-case-label { font-size: 14px; font-weight: 500; }
+
+  /* ===== Blockchain callout ===== */
+  .callout {
+    background: linear-gradient(135deg, rgba(63, 167, 160, 0.09), rgba(201, 162, 39, 0.07));
+    border: 1px solid rgba(63, 167, 160, 0.22);
+    border-radius: 22px; padding: 52px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center;
+  }
+  @media (max-width: 780px) { .callout { grid-template-columns: 1fr; padding: 32px 28px; } }
+  .callout h2 { font-size: clamp(24px, 3vw, 32px); }
+  .callout-visual {
+    font-family: var(--font-mono); font-size: 13px;
+    background: rgba(0,0,0,0.4); border: 1px solid var(--hairline); border-radius: 12px;
+    padding: 22px; color: var(--teal-bright); line-height: 2;
+  }
+  .callout-visual .muted { color: var(--text-faint); }
+  .callout-visual .brass { color: var(--brass-bright); }
+  .callout-visual .cursor { display: inline-block; width: 7px; height: 14px; background: var(--teal-bright); vertical-align: middle; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ===== Pricing ===== */
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  @media (max-width: 860px) { .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } }
+
+  .plan {
+    background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--radius);
+    padding: 34px 28px; display: flex; flex-direction: column;
+    transition: transform 0.25s var(--ease), border-color 0.25s ease;
+  }
+  .plan:hover { transform: translateY(-4px); }
+  .plan.featured {
+    border-color: var(--brass); background: linear-gradient(180deg, rgba(201, 162, 39, 0.09), var(--panel) 45%);
+    position: relative; box-shadow: 0 20px 50px rgba(201,162,39,0.08);
+  }
+  .plan-tag {
+    position: absolute; top: -13px; left: 28px; background: var(--brass); color: var(--brass-ink);
+    font-size: 11.5px; font-weight: 700; padding: 5px 13px; border-radius: 999px; letter-spacing: 0.02em;
+  }
+  .plan-name { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.005em; }
+  .plan-price { font-size: 38px; font-weight: 700; margin-bottom: 4px; font-family: var(--font-display); }
+  .plan-price span { font-size: 15px; color: var(--text-muted); font-weight: 400; font-family: var(--font-body); }
+  .plan-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 26px; }
+  .plan-features { list-style: none; margin-bottom: 30px; flex-grow: 1; }
+  .plan-features li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; color: var(--text); margin-bottom: 13px; }
+  .plan-features li svg { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; color: var(--teal-bright); }
+  .plan .btn { width: 100%; justify-content: center; }
+
+  /* ===== FAQ ===== */
+  .faq { display: flex; flex-direction: column; gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+  .faq-item { background: var(--panel); }
+  .faq-q {
+    width: 100%; text-align: left; padding: 22px 26px; background: none; border: none; color: var(--text);
+    font-family: var(--font-body); font-size: 15.5px; font-weight: 500; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  }
+  .faq-q:hover { background: var(--panel-2); }
+  .faq-icon { flex-shrink: 0; width: 18px; height: 18px; color: var(--brass-bright); transition: transform 0.3s var(--ease); }
+  .faq-item.open .faq-icon { transform: rotate(45deg); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s var(--ease); }
+  .faq-item.open .faq-a { max-height: 200px; }
+  .faq-a p { padding: 0 26px 22px; color: var(--text-muted); font-size: 14.5px; max-width: 640px; }
+
+  /* ===== Final CTA ===== */
+  .final-cta { text-align: center; padding: 108px 0; }
+  .final-cta h2 { max-width: 560px; margin: 0 auto 18px; }
+  .final-cta .section-sub { margin: 0 auto 38px; }
+  .final-cta .cta-row { justify-content: center; }
+
+  footer {
+    border-top: 1px solid var(--hairline); padding: 40px 0; color: var(--text-faint); font-size: 13px;
+  }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--text-faint); text-decoration: none; transition: color 0.2s ease; }
+  footer a:hover { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="wrap">
+    <a href="#" class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#c9a227" stroke-width="2"/>
+        <path d="M12 20l6 6 10-11" stroke="#c9a227" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      ProductAuth
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#benefits">Benefits</a>
+      <a href="#chain">Blockchain</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#get-started" class="nav-cta">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">For physical and digital goods</div>
+      <h1>Give every product a mark <em>no one can fake.</em></h1>
+      <p class="hero-sub">ProductAuth turns any item — apparel, collectibles, electronics, limited drops — into something a customer can verify in one scan. Cryptographically signed. Tamper-proof. Permanent, if you want it to be.</p>
+      <div class="cta-row">
+        <a href="#get-started" class="btn btn-primary">Start protecting your products</a>
+        <a href="#how" class="btn btn-secondary">See how it works</a>
+      </div>
+      <div class="trust-line">RS256-signed tokens · scan-level audit trail · your data, exportable anytime</div>
+    </div>
+    <div class="seal-stage">
+      <div class="seal-dust" id="dust"></div>
+      <div class="seal-ripple" id="ripple"></div>
+      <svg class="seal" id="seal" viewBox="0 0 216 216" fill="none">
+        <circle cx="108" cy="108" r="100" stroke="#c9a227" stroke-width="2.5"/>
+        <circle cx="108" cy="108" r="88" stroke="#c9a227" stroke-width="1" stroke-dasharray="1 6" stroke-linecap="round"/>
+        <circle cx="108" cy="108" r="70" stroke="#8a7025" stroke-width="1"/>
+        <path d="M76 110l20 20 42-46" stroke="#e0bc4a" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="108" y="42" text-anchor="middle" fill="#979da8" font-family="IBM Plex Mono" font-size="9" letter-spacing="3.5">AUTHENTIC</text>
+        <text x="108" y="180" text-anchor="middle" fill="#979da8" font-family="IBM Plex Mono" font-size="9" letter-spacing="3.5">VERIFIED</text>
+        <circle cx="108" cy="60" r="1.6" fill="#8a7025"/>
+        <circle cx="108" cy="156" r="1.6" fill="#8a7025"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">The problem</div>
+      <h2>Counterfeits don't just cost sales. They cost trust.</h2>
+      <p class="section-sub">Once a customer can't tell your real product from a fake, every future sale carries doubt — even the genuine ones.</p>
+    </div>
+    <div class="stat-row reveal">
+      <div class="stat">
+        <span class="stat-num">$500B+</span>
+        <span class="stat-label">drained from legitimate businesses by counterfeiting every year</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">1 scan</span>
+        <span class="stat-label">is all it takes for a customer to confirm what you already know — it's real</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">0 apps</span>
+        <span class="stat-label">required — every phone camera already reads a QR code</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">How it works</div>
+      <h2>Three steps. No hardware, no proprietary scanners.</h2>
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <span class="step-num">01 — TAG</span>
+        <h3>Generate a signed QR for every item</h3>
+        <p>Each product gets a unique, cryptographically signed code — impossible to forge without your private key.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">02 — SCAN</span>
+        <h3>Customers verify with their own phone</h3>
+        <p>No app to install. A camera scan opens an instant, branded verification page.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">03 — VERIFY</span>
+        <h3>Get an answer, and a record</h3>
+        <p>Authentic or not, every scan is logged — timestamp, location signal, and risk level — automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="benefits">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">What you get</div>
+      <h2>Built for brands who take authenticity seriously.</h2>
+    </div>
+    <div class="grid-3 reveal">
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <h3>Tamper-proof signatures</h3>
+        <p>RS256-signed tokens mean a code can't be edited, cloned, or reused without detection.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
+        <h3>Real-time scan tracking</h3>
+        <p>See exactly when and how often each product is verified, with automatic risk flags on suspicious patterns.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.86L2.8 18a1.5 1.5 0 0 0 1.3 2.25h15.8a1.5 1.5 0 0 0 1.3-2.25L13.7 3.86a1.5 1.5 0 0 0-2.6 0z"/></svg></div>
+        <h3>Clone detection</h3>
+        <p>The same code scanned an unusual number of times, or from spread-out locations, gets flagged automatically.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 20V9"/></svg></div>
+        <h3>Branded verification pages</h3>
+        <p>Your customer's scan lands on a page that looks like you — not a generic third-party tool.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 6v9a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 15z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg></div>
+        <h3>Full data ownership</h3>
+        <p>Export every product and every scan, anytime, in JSON or CSV. It's your data — always.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg></div>
+        <h3>Minutes to launch</h3>
+        <p>No barcodes to register, no hardware to buy. Generate your first signed QR the same day you sign up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">Who it's for</div>
+      <h2>If someone could fake it, you need this.</h2>
+    </div>
+    <div class="use-cases reveal">
+      <div class="use-case">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></div>
+        <div class="use-case-label">Apparel &amp; streetwear</div>
+      </div>
+      <div class="use-case">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <div class="use-case-label">Limited drops</div>
+      </div>
+      <div class="use-case">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
+        <div class="use-case-label">Collectibles &amp; toys</div>
+      </div>
+      <div class="use-case">
+        <div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+        <div class="use-case-label">Electronics &amp; parts</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="chain">
+  <div class="wrap">
+    <div class="callout reveal">
+      <div>
+        <div class="section-label">Optional, permanent</div>
+        <h2>When a code isn't proof enough — put it on the chain.</h2>
+        <p class="section-sub" style="margin-bottom: 24px;">For your most important pieces, inscribe a product's record directly onto the Dogecoin blockchain. It's the same idea as a wax seal on a letter — except this one can never be broken, faded, or disputed. No server required to check it, ever again.</p>
+        <a href="#pricing" class="btn btn-secondary">See which plans include this</a>
+      </div>
+      <div class="callout-visual">
+        <div><span class="muted">$</span> inscribe --product WIZ-HOODIE-001</div>
+        <div class="muted">↳ hashing signed token…</div>
+        <div class="muted">↳ writing manifest to chain…</div>
+        <div class="brass">✓ inscription confirmed</div>
+        <div class="muted">↳ permanent · public · unowned by any server<span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">Pricing</div>
+      <h2>Pick a plan. Upgrade whenever you need more.</h2>
+    </div>
+    <div class="pricing-grid reveal">
+      <div class="plan">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$19<span>/mo</span></div>
+        <div class="plan-desc">For small runs and first drops.</div>
+        <ul class="plan-features">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Up to 50 products / month</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Branded verification page</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Scan history &amp; risk flags</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>CSV/JSON export</li>
+        </ul>
+        <a href="#get-started" class="btn btn-secondary">Start free</a>
+      </div>
+      <div class="plan featured">
+        <div class="plan-tag">Most popular</div>
+        <div class="plan-name">Growth</div>
+        <div class="plan-price">$49<span>/mo</span></div>
+        <div class="plan-desc">For growing catalogs and drops.</div>
+        <ul class="plan-features">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Up to 250 products / month</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Custom verification branding</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Logo-embedded QR codes</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Priority support</li>
+        </ul>
+        <a href="#get-started" class="btn btn-primary">Start free</a>
+      </div>
+      <div class="plan">
+        <div class="plan-name">Business</div>
+        <div class="plan-price">$149<span>/mo</span></div>
+        <div class="plan-desc">For serious volume and provenance.</div>
+        <ul class="plan-features">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Up to 1,500 products / month</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Blockchain inscription tools</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Full API access</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Dedicated support</li>
+        </ul>
+        <a href="#get-started" class="btn btn-secondary">Start free</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-label">Questions</div>
+      <h2>Before you ask, here's what people usually want to know.</h2>
+    </div>
+    <div class="faq reveal">
+      <div class="faq-item">
+        <button class="faq-q">Do I need any technical skills to use this?<svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>No. You generate a QR code from a simple dashboard form, download the image, and print it. No code, no setup beyond your account.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Do my customers need to install an app?<svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Never. Any phone's built-in camera reads the QR code and opens a normal web page — no download required.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Is my product data ever locked in?<svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>No. You can export every product and every verification event as JSON or CSV at any time, on any plan.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">What happens if I cancel?<svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>QR codes you've already printed keep working for existing verifications during a grace period — you're never left with dead codes on shipped product without notice.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Is blockchain inscription required?<svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="faq-a"><p>Never. It's an optional, per-product feature for pieces where you want a permanent public record. Most products don't need it.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta" id="get-started">
+  <div class="wrap">
+    <div class="reveal">
+      <h2>Your product deserves proof, not just packaging.</h2>
+      <p class="section-sub">Get early access while we're onboarding our first brands.</p>
+      <div class="cta-row">
+        <a href="mailto:hello@myproductauth.com?subject=Early%20access%20request" class="btn btn-primary">Request early access</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 ProductAuth</span>
+    <span><a href="mailto:hello@myproductauth.com">hello@myproductauth.com</a></span>
+  </div>
+</footer>
+
+<script>
+  const seal = document.getElementById('seal');
+  const ripple = document.getElementById('ripple');
+  const dust = document.getElementById('dust');
+  requestAnimationFrame(() => {
+    seal.classList.add('drop');
+    ripple.classList.add('play');
+    dust.classList.add('play');
+  });
+
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 8);
+  }, { passive: true });
+
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  revealEls.forEach(el => io.observe(el));
+
+  document.querySelectorAll('.faq-item').forEach(item => {
+    item.querySelector('.faq-q').addEventListener('click', () => {
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+</script>
+
+</body>
+</html>

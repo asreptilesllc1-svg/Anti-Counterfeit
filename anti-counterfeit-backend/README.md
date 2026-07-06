@@ -1,73 +1,74 @@
-# Anti-Counterfeit QR Verification System
+# ProductAuth — Multi-Tenant Anti-Counterfeit QR Verification
 
-A cryptographically signed QR code system for authenticating physical merchandise.
+A self-serve SaaS for signing, tracking, and verifying physical/digital product authenticity via QR codes, with optional permanent blockchain inscription.
 
-## How it works
-1. Generate an RS256 keypair (`generate-keys.mjs`)
-2. Backend (`index.js`) signs a JWT for each product and encodes a verification URL into a QR code
-3. Scanning the QR hits `/verify-token`, which checks the signature and logs the scan in Postgres
-4. Every scan is tracked — total scans, risk level, IP, timestamp — for fraud detection
+## Architecture
+- **Node.js / Express** backend, one shared signing keypair for the whole platform
+- **PostgreSQL** (Supabase) with full multi-tenant isolation — every account's products, verifications, and audit log entries are scoped by `account_id`, enforced server-side on every query
+- **Stripe** for billing (subscriptions, webhooks)
+- **JWT (RS256)** signs every product token; a token embeds which account owns it, so verification can look up that account's branding and data without any per-customer keys
+- IP-based location lookup on every scan (best-effort, never blocks verification if it fails)
 
-## Stack
-- Node.js / Express backend
-- PostgreSQL for products + verification history (schema: `database-setup.sql`)
-- JWT (RS256) for tamper-proof signing
-- `qrcode` + `canvas` for QR generation, with optional logo overlay
+## Accounts and isolation
+Each customer:
+- Signs up with email + password (`/signup`) — password hashed with scrypt, never stored in plaintext
+- Gets their own `api_key`, used in the `x-api-key` header for every authenticated request
+- Can only ever see/modify their own products and verifications — every query is filtered by their `account_id`
+- Has a `plan_product_limit` enforced server-side before any QR can be generated past their monthly quota
+- Can set their own `business_name`, `brand_logo_url`, and `brand_color` — these are returned by `/verify-token` and rendered live on the shared `verify.html` page, so each customer's verification page looks like their own brand without needing a separate deployed page per customer
 
-## Local setup
+## Setup
+
+### 1. Database
+Fresh install: run `database-setup.sql` in Supabase's SQL Editor.
+Upgrading an existing single-tenant install: run `migration-multitenant.sql` instead — it preserves existing data by migrating it into a "legacy" account, and fixes a critical constraint (`product_id` must be unique **per account**, not globally, or two customers naming a product the same SKU would collide).
+
+### 2. Signing keys
 ```
-npm install
 node generate-keys.mjs
-$env:PRIVATE_KEY = Get-Content private.pem -Raw
-$env:PUBLIC_KEY = Get-Content public.pem -Raw
-$env:DATABASE_URL = "your-postgres-connection-string"
-npm start
 ```
+Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **Never rotate these once real customers have printed QR codes** — doing so invalidates every code already in the world.
 
-## Deployment
-- Hosted on Render, pointed at `verify.myproductauth.com` via the `CNAME` file
-- Set `PRIVATE_KEY`, `PUBLIC_KEY`, and `DATABASE_URL` as environment variables in Render — never commit keys
-- Run `database-setup.sql` once against your Postgres instance to create tables/views
+### 3. Environment variables (Render)
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Supabase/Postgres connection string |
+| `PRIVATE_KEY` / `PUBLIC_KEY` | Platform signing keypair |
+| `ADMIN_KEY` | Your own superadmin key (cross-account operations only — not used by customers) |
+| `EXPORT_KEY` | Your own platform-wide backup export key |
+| `ALLOWED_ORIGINS` | Comma-separated allowed origins for CORS (defaults to `verify.myproductauth.com`) |
+| `STRIPE_SECRET_KEY` | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
+| `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_BUSINESS` | Stripe Price IDs for each plan |
+
+### 4. Stripe setup
+1. In Stripe, create three recurring Prices (Starter/Growth/Business) under one Product (or three Products — either works)
+2. Copy each Price ID into the env vars above
+3. Add a webhook endpoint pointing to `https://your-backend.onrender.com/webhooks/stripe`, subscribed to: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
+4. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`
 
 ## Endpoints
-- `POST /sign-qr` — generate a signed QR code (no logo)
-- `POST /sign-qr-with-logo` — generate a signed QR code with a logo overlay
-- `POST /verify-token` — verify a scanned token, logs the scan
-- `GET /products` — list tracked products
-- `GET /verifications` — scan history
-- `GET /analytics/overview` — summary stats
-- `GET /export/products?key=YOUR_EXPORT_KEY&format=json|csv` — full backup of every product (includes the QR image and signed token)
-- `GET /export/verifications?key=YOUR_EXPORT_KEY&format=json|csv` — full backup of every scan/verification event
 
-## Security model
-- `ADMIN_KEY` (env var, required): protects QR generation, product activate/deactivate, product lists, verification history, and analytics. Sent as an `x-admin-key` header. `generate.html` and `admin.html` prompt for it once per browser session. **Without this set, those endpoints are disabled entirely.**
-- `EXPORT_KEY` (env var): protects the backup export endpoints (passed as `?key=` in the URL).
-- `/verify-token` is intentionally public (customers must verify), but rate-limited to 30 requests/min per IP.
-- All admin endpoints are rate-limited (60/min per IP); exports 5/min per IP.
-- CORS is locked to `https://verify.myproductauth.com` (override with an `ALLOWED_ORIGINS` env var, comma-separated, if ever needed).
-- The health check at `/` no longer lists available endpoints.
-- Use different random strings for `ADMIN_KEY` and `EXPORT_KEY`. Store both in a password manager alongside your `.pem` files.
+### Public (no auth)
+- `GET /` — health check
+- `POST /signup` — create an account
+- `POST /login` — get your API key
+- `POST /verify-token` — customer-facing verification, rate-limited
 
-## Blockchain inscription (Doginals) — the final, permanent step
-Each product can be anchored on the Dogecoin blockchain. Do this ONLY when a product's details are locked and final — inscriptions cannot be edited or removed, ever.
+### Authenticated (`x-api-key` header)
+- `POST /sign-qr`, `POST /sign-qr-with-logo` — generate a signed QR (blocked once you hit your plan's monthly limit)
+- `GET /products`, `GET /products/:id`, `POST /products/:id/activate|deactivate`
+- `GET /products/:id/manifest`, `POST /products/:id/inscription` — blockchain inscription tools
+- `GET /verifications`, `GET /analytics/overview`, `GET /analytics/by-date`, `GET /analytics/by-product`
+- `GET /export/products`, `GET /export/verifications` — your own data, JSON or CSV
+- `GET /account/me`, `POST /account/branding`, `POST /account/regenerate-key`
+- `POST /billing/checkout`, `POST /billing/portal` — Stripe subscription management
 
-**Also do once, before any products:** inscribe the contents of `public.pem` as a text inscription. This creates a permanent, independent anchor for your entire verification system — anyone can verify your tokens against the on-chain public key forever, even if all your servers disappear. Save that inscription ID somewhere prominent.
+### Superadmin (`x-admin-key` header — you, not customers)
+- `GET /admin/export/all` — full cross-account backup
 
-Per-product workflow (after generating the product's QR):
-1. Get the manifest: `GET /products/:id/manifest` (with `x-admin-key` header). Copy the `inscribeThis` string exactly.
-2. Inscribe it as plain text using a Doginals inscription service (e.g. Doge Labs at drc-20.org/inscribe or doggy.market). Cost is roughly a couple of DOGE per inscription. Do a cheap test inscription first if it's your first time.
-3. Copy the resulting inscription ID from the service/explorer.
-4. Record it: `POST /products/:id/inscription` with JSON body `{"inscriptionId":"<id>"}` (with `x-admin-key` header). This is write-once — the API refuses to overwrite an existing inscription ID.
-5. Customers scanning that product now see an "⛓️ Inscribed on Dogecoin" badge with a link to the permanent on-chain record.
-
-Migration note: existing databases need `migration-add-inscription.sql` run once in Supabase's SQL Editor.
-
-## Backups (important if tagging real merchandise)
-- Set an `EXPORT_KEY` environment variable in Render — a long random string only you know. Without it, the export endpoints are disabled.
-- Periodically download a backup:
-  ```
-  https://your-backend.onrender.com/export/products?key=YOUR_EXPORT_KEY&format=json
-  ```
-  Save the file somewhere outside of Render/Supabase entirely (cloud drive, external storage).
-- **Never rotate `PRIVATE_KEY`/`PUBLIC_KEY` after tagging real merchandise** — doing so permanently invalidates every QR code already printed. Back up both `.pem` files somewhere secure and durable (password manager, encrypted drive) and treat them as permanent for this product line.
-- On Supabase, the free tier has no automatic backups and pauses projects after 7 days of inactivity — upgrade to Pro before relying on this for real inventory.
+## What's honestly still missing
+This backend now backs every claim on the marketing page truthfully — real quotas, real per-tenant branding, real location tracking. Still ahead, not yet built:
+- A polished self-serve billing UI inside the dashboard (checkout currently needs to be triggered via API call)
+- A dedicated onboarding flow guiding a new signup through their first QR code
+- Admin-side account management UI (currently API-only via `/admin/export/all` and direct DB access)

@@ -5,13 +5,14 @@ import QRCode from "qrcode";
 import { createCanvas, loadImage } from "canvas";
 import pg from "pg";
 import fs from "fs";
+import crypto from "crypto";
+import Stripe from "stripe";
 
 const { Pool } = pg;
 const app = express();
 
 // ================================
-// CORS — locked to the verification site only.
-// (Server-to-server tools like PowerShell are unaffected; CORS governs browsers.)
+// CORS
 // ================================
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "https://verify.myproductauth.com")
   .split(",")
@@ -20,14 +21,66 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "https://verify.myproduc
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no Origin header (curl, PowerShell, mobile apps, same-origin)
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-        return callback(null, true);
-      }
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
   })
 );
+
+// Stripe webhook needs the raw body, so it must be registered BEFORE express.json()
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
+app.post("/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send("Stripe not configured");
+  }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers["stripe-signature"], STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("❌ Stripe webhook signature invalid:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        const accountId = session.client_reference_id;
+        const plan = session.metadata?.plan || "starter";
+        const limits = { starter: 50, growth: 250, business: 1500 };
+        await pool.query(
+          `UPDATE accounts SET plan = $1, plan_product_limit = $2, stripe_customer_id = $3, stripe_subscription_id = $4, subscription_status = 'active' WHERE id = $5`,
+          [plan, limits[plan] || 50, session.customer, session.subscription, accountId]
+        );
+        console.log(`✅ Account ${accountId} activated on plan ${plan}`);
+        break;
+      }
+      case "customer.subscription.updated": {
+        const sub = event.data.object;
+        const status = sub.status === "active" || sub.status === "trialing" ? "active" : sub.status;
+        await pool.query(`UPDATE accounts SET subscription_status = $1 WHERE stripe_subscription_id = $2`, [status, sub.id]);
+        break;
+      }
+      case "customer.subscription.deleted": {
+        const sub = event.data.object;
+        await pool.query(`UPDATE accounts SET subscription_status = 'canceled' WHERE stripe_subscription_id = $1`, [sub.id]);
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        await pool.query(`UPDATE accounts SET subscription_status = 'past_due' WHERE stripe_customer_id = $1`, [invoice.customer]);
+        break;
+      }
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error("❌ Error handling Stripe webhook:", err);
+    res.status(500).send("Webhook handler failed");
+  }
+});
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -38,9 +91,16 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const PUBLIC_KEY = process.env.PUBLIC_KEY;
 const PORT = process.env.PORT || 10000;
 const VERIFY_BASE_URL = process.env.VERIFY_BASE_URL || "https://verify.myproductauth.com";
-const EXPORT_KEY = process.env.EXPORT_KEY;
-const ADMIN_KEY = process.env.ADMIN_KEY;
+const EXPORT_KEY = process.env.EXPORT_KEY; // platform-level full-backup key (you, not customers)
+const ADMIN_KEY = process.env.ADMIN_KEY;   // platform-level superadmin key (you, not customers)
 const LOGO_PATH = "./logo.png";
+
+const PLAN_LIMITS = { starter: 50, growth: 250, business: 1500 };
+const STRIPE_PRICE_IDS = {
+  starter: process.env.STRIPE_PRICE_STARTER,
+  growth: process.env.STRIPE_PRICE_GROWTH,
+  business: process.env.STRIPE_PRICE_BUSINESS,
+};
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -48,21 +108,44 @@ const pool = new Pool({
 });
 
 pool.query("SELECT NOW()", (err) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err);
-  } else {
-    console.log("✅ Database connected successfully!");
-  }
+  if (err) console.error("❌ Database connection failed:", err);
+  else console.log("✅ Database connected successfully!");
 });
+
+// ================================
+// PASSWORD / API KEY HELPERS (no external deps — Node's built-in crypto)
+// ================================
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = (stored || "").split(":");
+  if (!salt || !hash) return false;
+  const check = crypto.scryptSync(password, salt, 64).toString("hex");
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(check, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function generateApiKey() {
+  return "pk_" + crypto.randomBytes(24).toString("hex");
+}
+
+function isValidEmail(email) {
+  return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 // ================================
 // HELPERS
 // ================================
-async function calculateRiskLevel(productId) {
+async function calculateRiskLevel(accountId, productId) {
   try {
     const result = await pool.query(
-      "SELECT COUNT(*) as count FROM verifications WHERE product_id = $1 AND verified_at > NOW() - INTERVAL '24 hours'",
-      [productId]
+      "SELECT COUNT(*) as count FROM verifications WHERE account_id = $1 AND product_id = $2 AND verified_at > NOW() - INTERVAL '24 hours'",
+      [accountId, productId]
     );
     const count = parseInt(result.rows[0].count);
     if (count > 10) return "high";
@@ -76,16 +159,36 @@ async function calculateRiskLevel(productId) {
 
 function getClientIP(req) {
   return (
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     req.connection.remoteAddress ||
     req.socket.remoteAddress ||
     "unknown"
   );
 }
 
+// Best-effort IP geolocation. Never throws, never blocks verification for long —
+// a slow or failed lookup just means location stays null.
+async function lookupLocation(ip) {
+  if (!ip || ip === "unknown" || ip.startsWith("127.") || ip.startsWith("::1") || ip.startsWith("10.") || ip.startsWith("192.168.")) {
+    return { country: null, city: null };
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (data && data.success !== false) {
+      return { country: data.country || null, city: data.city || null };
+    }
+  } catch (err) {
+    console.warn("⚠️  Location lookup failed:", err.message);
+  }
+  return { country: null, city: null };
+}
+
 async function generateQRWithLogo(data, logoBuffer, options = {}) {
   const { size = 800, margin = 2, logoSize = 0.2, logoBorderRadius = 10 } = options;
-
   const qrCanvas = createCanvas(size, size);
   await QRCode.toCanvas(qrCanvas, data, {
     errorCorrectionLevel: "H",
@@ -93,9 +196,7 @@ async function generateQRWithLogo(data, logoBuffer, options = {}) {
     width: size,
     color: { dark: "#000000", light: "#FFFFFF" },
   });
-
   const ctx = qrCanvas.getContext("2d");
-
   if (logoBuffer) {
     try {
       const logo = await loadImage(logoBuffer);
@@ -104,19 +205,15 @@ async function generateQRWithLogo(data, logoBuffer, options = {}) {
       const logoX = (size - logoWidth) / 2;
       const logoY = (size - logoHeight) / 2;
       const padding = 10;
-
       ctx.fillStyle = "#FFFFFF";
       ctx.beginPath();
       ctx.roundRect(logoX - padding, logoY - padding, logoWidth + padding * 2, logoHeight + padding * 2, logoBorderRadius);
       ctx.fill();
       ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
-
-      console.log("✅ Logo added to QR code");
     } catch (err) {
       console.warn("⚠️  Could not add logo:", err.message);
     }
   }
-
   return qrCanvas.toDataURL("image/png");
 }
 
@@ -124,41 +221,64 @@ async function generateQRWithLogo(data, logoBuffer, options = {}) {
 // SECURITY MIDDLEWARE
 // ================================
 
-// Admin authentication — required for anything that creates, changes,
-// or reveals business data. Key is sent in the "x-admin-key" header.
-function requireAdmin(req, res, next) {
-  if (!ADMIN_KEY) {
-    return res.status(500).json({ error: "ADMIN_KEY not configured on server - admin endpoints disabled" });
+// Per-customer auth — looks up the account owning this API key.
+// Every tenant-scoped route uses this; req.account is then available.
+async function requireAccount(req, res, next) {
+  const apiKey = req.headers["x-api-key"];
+  if (!apiKey) return res.status(401).json({ error: "Missing x-api-key header" });
+
+  try {
+    const result = await pool.query("SELECT * FROM accounts WHERE api_key = $1", [apiKey]);
+    if (result.rows.length === 0) return res.status(403).json({ error: "Invalid API key" });
+
+    const account = result.rows[0];
+    if (!account.is_active) return res.status(403).json({ error: "Account deactivated" });
+    if (!["active", "trialing"].includes(account.subscription_status)) {
+      return res.status(402).json({ error: "Subscription inactive - please update billing", status: account.subscription_status });
+    }
+    req.account = account;
+    next();
+  } catch (err) {
+    console.error("Error authenticating account:", err);
+    res.status(500).json({ error: "Authentication failed" });
   }
-  const provided = req.headers["x-admin-key"];
-  if (!provided || provided !== ADMIN_KEY) {
-    return res.status(403).json({ error: "Invalid or missing admin key" });
-  }
+}
+
+// Platform-level (you, not customers) — used for cross-account operations only.
+function requireSuperAdmin(req, res, next) {
+  if (!ADMIN_KEY) return res.status(500).json({ error: "ADMIN_KEY not configured" });
+  if (req.headers["x-admin-key"] !== ADMIN_KEY) return res.status(403).json({ error: "Invalid admin key" });
   next();
 }
 
-// Lightweight in-memory rate limiter (per IP, per window).
-// Suitable for a single-instance service; resets on restart.
+function checkExportKey(req, res) {
+  if (!EXPORT_KEY) {
+    res.status(500).json({ error: "EXPORT_KEY not configured" });
+    return false;
+  }
+  if (req.query.key !== EXPORT_KEY) {
+    res.status(403).json({ error: "Invalid or missing export key" });
+    return false;
+  }
+  return true;
+}
+
+// Lightweight in-memory rate limiter (per key, per window)
 const rateBuckets = new Map();
 function rateLimit({ windowMs, max }) {
   return (req, res, next) => {
     const now = Date.now();
-    const ip = getClientIP(req);
-    const key = `${req.path}:${ip}`;
+    const key = `${req.path}:${req.headers["x-api-key"] || getClientIP(req)}`;
     let bucket = rateBuckets.get(key);
     if (!bucket || now - bucket.start > windowMs) {
       bucket = { start: now, count: 0 };
       rateBuckets.set(key, bucket);
     }
     bucket.count++;
-    if (bucket.count > max) {
-      return res.status(429).json({ error: "Too many requests - slow down" });
-    }
+    if (bucket.count > max) return res.status(429).json({ error: "Too many requests - slow down" });
     next();
   };
 }
-
-// Periodically clean old buckets so the map doesn't grow forever
 setInterval(() => {
   const now = Date.now();
   for (const [key, bucket] of rateBuckets) {
@@ -166,9 +286,31 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // 30 verifications/min per IP
-const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });    // 60 admin ops/min per IP
-const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });    // 5 exports/min per IP
+const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });     // signup/login attempts
+const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // public verification
+const accountLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });  // authenticated account ops
+const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
+
+async function enforceProductQuota(req, res, next) {
+  try {
+    const result = await pool.query(
+      "SELECT COUNT(*) as count FROM products WHERE account_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)",
+      [req.account.id]
+    );
+    const usedThisMonth = parseInt(result.rows[0].count);
+    if (usedThisMonth >= req.account.plan_product_limit) {
+      return res.status(403).json({
+        error: `Monthly product limit reached (${req.account.plan_product_limit} on the ${req.account.plan} plan). Upgrade to add more.`,
+        usedThisMonth,
+        limit: req.account.plan_product_limit,
+      });
+    }
+    next();
+  } catch (err) {
+    console.error("Error checking quota:", err);
+    res.status(500).json({ error: "Failed to check usage quota" });
+  }
+}
 
 // ================================
 // HEALTH CHECK
@@ -176,32 +318,161 @@ const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });    // 5 export
 app.get("/", async (req, res) => {
   try {
     const dbCheck = await pool.query("SELECT NOW()");
-    res.json({
-      status: "ok",
-      database: "connected",
-      timestamp: dbCheck.rows[0].now,
-      version: "1.2.0",
-    });
+    res.json({ status: "ok", database: "connected", timestamp: dbCheck.rows[0].now, version: "2.0.0" });
   } catch (err) {
     res.status(500).json({ status: "error", message: "Database connection failed" });
   }
 });
 
 // ================================
+// ACCOUNTS — signup, login, self-service
+// ================================
+app.post("/signup", authLimiter, async (req, res) => {
+  const { email, password, businessName } = req.body || {};
+  if (!isValidEmail(email)) return res.status(400).json({ error: "Valid email required" });
+  if (!password || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+
+  try {
+    const existing = await pool.query("SELECT id FROM accounts WHERE email = $1", [email.toLowerCase()]);
+    if (existing.rows.length > 0) return res.status(409).json({ error: "An account with this email already exists" });
+
+    const apiKey = generateApiKey();
+    const passwordHash = hashPassword(password);
+    const result = await pool.query(
+      `INSERT INTO accounts (email, password_hash, api_key, business_name, plan, plan_product_limit, subscription_status)
+       VALUES ($1, $2, $3, $4, 'starter', $5, 'trialing') RETURNING id, email, business_name, plan, api_key`,
+      [email.toLowerCase(), passwordHash, apiKey, businessName || null, PLAN_LIMITS.starter]
+    );
+    console.log(`✅ New account signed up: ${email}`);
+    res.status(201).json({ message: "Account created", account: result.rows[0] });
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.status(500).json({ error: "Signup failed" });
+  }
+});
+
+app.post("/login", authLimiter, async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+  try {
+    const result = await pool.query("SELECT * FROM accounts WHERE email = $1", [email.toLowerCase()]);
+    if (result.rows.length === 0 || !verifyPassword(password, result.rows[0].password_hash)) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+    const account = result.rows[0];
+    res.json({
+      apiKey: account.api_key,
+      businessName: account.business_name,
+      plan: account.plan,
+      subscriptionStatus: account.subscription_status,
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+app.get("/account/me", requireAccount, accountLimiter, async (req, res) => {
+  const a = req.account;
+  res.json({
+    email: a.email,
+    businessName: a.business_name,
+    brandLogoUrl: a.brand_logo_url,
+    brandColor: a.brand_color,
+    plan: a.plan,
+    planProductLimit: a.plan_product_limit,
+    subscriptionStatus: a.subscription_status,
+  });
+});
+
+app.post("/account/branding", requireAccount, accountLimiter, async (req, res) => {
+  const { businessName, brandLogoUrl, brandColor } = req.body || {};
+  try {
+    await pool.query(
+      "UPDATE accounts SET business_name = COALESCE($1, business_name), brand_logo_url = COALESCE($2, brand_logo_url), brand_color = COALESCE($3, brand_color) WHERE id = $4",
+      [businessName || null, brandLogoUrl || null, brandColor || null, req.account.id]
+    );
+    res.json({ message: "Branding updated" });
+  } catch (err) {
+    console.error("Error updating branding:", err);
+    res.status(500).json({ error: "Failed to update branding" });
+  }
+});
+
+app.post("/account/regenerate-key", requireAccount, accountLimiter, async (req, res) => {
+  try {
+    const newKey = generateApiKey();
+    await pool.query("UPDATE accounts SET api_key = $1 WHERE id = $2", [newKey, req.account.id]);
+    res.json({ message: "API key regenerated - update it anywhere you use the old one", apiKey: newKey });
+  } catch (err) {
+    console.error("Error regenerating key:", err);
+    res.status(500).json({ error: "Failed to regenerate key" });
+  }
+});
+
+// ================================
+// BILLING (Stripe)
+// ================================
+app.post("/billing/checkout", requireAccount, accountLimiter, async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: "Billing is not configured yet" });
+  const { plan } = req.body || {};
+  const priceId = STRIPE_PRICE_IDS[plan];
+  if (!priceId) return res.status(400).json({ error: "Invalid plan" });
+
+  try {
+    let customerId = req.account.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: req.account.email });
+      customerId = customer.id;
+      await pool.query("UPDATE accounts SET stripe_customer_id = $1 WHERE id = $2", [customerId, req.account.id]);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      client_reference_id: String(req.account.id),
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { plan },
+      success_url: `${VERIFY_BASE_URL}/dashboard.html?billing=success`,
+      cancel_url: `${VERIFY_BASE_URL}/dashboard.html?billing=canceled`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Error creating checkout session:", err);
+    res.status(500).json({ error: "Failed to start checkout" });
+  }
+});
+
+app.post("/billing/portal", requireAccount, accountLimiter, async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: "Billing is not configured yet" });
+  if (!req.account.stripe_customer_id) return res.status(400).json({ error: "No billing account on file yet" });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: req.account.stripe_customer_id,
+      return_url: `${VERIFY_BASE_URL}/dashboard.html`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Error creating billing portal session:", err);
+    res.status(500).json({ error: "Failed to open billing portal" });
+  }
+});
+
+// ================================
 // SIGN + QR (no logo)
 // ================================
-app.post("/sign-qr", requireAdmin, adminLimiter, async (req, res) => {
+app.post("/sign-qr", requireAccount, accountLimiter, enforceProductQuota, async (req, res) => {
   const payload =
     req.body && Object.keys(req.body).length
       ? req.body
       : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
 
-  if (!PRIVATE_KEY) {
-    return res.status(500).json({ error: "PRIVATE_KEY not set" });
-  }
+  if (!PRIVATE_KEY) return res.status(500).json({ error: "PRIVATE_KEY not set" });
 
   try {
-    const signedToken = jwt.sign({ data: payload }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
+    const tokenPayload = { ...payload, account_id: req.account.id };
+    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
     const verifyUrl = `${VERIFY_BASE_URL}/verify.html?p=${encodeURIComponent(signedToken)}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
       errorCorrectionLevel: "M",
@@ -210,28 +481,21 @@ app.post("/sign-qr", requireAdmin, adminLimiter, async (req, res) => {
       color: { dark: "#000000", light: "#FFFFFF" },
     });
 
-    try {
-      const existingProduct = await pool.query("SELECT id FROM products WHERE product_id = $1", [payload.id]);
-      if (existingProduct.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO products (product_id, name, batch, qr_data_url, signed_token, notes) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [payload.id, payload.name, payload.batch || "N/A", qrDataUrl, signedToken, payload.notes || null]
-        );
-        console.log(`✅ Product saved: ${payload.id}`);
-      } else {
-        await pool.query(
-          `UPDATE products SET name = $2, batch = $3, qr_data_url = $4, signed_token = $5 WHERE product_id = $1`,
-          [payload.id, payload.name, payload.batch || "N/A", qrDataUrl, signedToken]
-        );
-        console.log(`✅ Product updated: ${payload.id}`);
-      }
-      await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", [
-        "QR_GENERATED",
-        `Product: ${payload.id} - ${payload.name}`,
-      ]);
-    } catch (dbErr) {
-      console.error("❌ Database error:", dbErr);
+    const existing = await pool.query("SELECT id FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, payload.id]);
+    if (existing.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO products (account_id, product_id, name, batch, qr_data_url, signed_token, notes) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.account.id, payload.id, payload.name, payload.batch || "N/A", qrDataUrl, signedToken, payload.notes || null]
+      );
+    } else {
+      await pool.query(
+        `UPDATE products SET name = $3, batch = $4, qr_data_url = $5, signed_token = $6 WHERE account_id = $1 AND product_id = $2`,
+        [req.account.id, payload.id, payload.name, payload.batch || "N/A", qrDataUrl, signedToken]
+      );
     }
+    await pool.query("INSERT INTO audit_log (account_id, action, details) VALUES ($1, $2, $3)", [
+      req.account.id, "QR_GENERATED", `Product: ${payload.id} - ${payload.name}`,
+    ]);
 
     res.json({ signedToken, verifyUrl, qrDataUrl, productId: payload.id });
   } catch (err) {
@@ -243,55 +507,41 @@ app.post("/sign-qr", requireAdmin, adminLimiter, async (req, res) => {
 // ================================
 // SIGN + QR (with logo)
 // ================================
-app.post("/sign-qr-with-logo", requireAdmin, adminLimiter, async (req, res) => {
+app.post("/sign-qr-with-logo", requireAccount, accountLimiter, enforceProductQuota, async (req, res) => {
   const { logo, ...payload } = req.body;
-  const productData =
-    Object.keys(payload).length > 0
-      ? payload
-      : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
+  const productData = Object.keys(payload).length > 0 ? payload : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
 
-  if (!PRIVATE_KEY) {
-    return res.status(500).json({ error: "PRIVATE_KEY not set" });
-  }
+  if (!PRIVATE_KEY) return res.status(500).json({ error: "PRIVATE_KEY not set" });
 
   try {
-    const signedToken = jwt.sign({ data: productData }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
+    const tokenPayload = { ...productData, account_id: req.account.id };
+    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
     const verifyUrl = `${VERIFY_BASE_URL}/verify.html?p=${encodeURIComponent(signedToken)}`;
 
     let logoBuffer = null;
     if (logo) {
-      const base64Data = logo.replace(/^data:image\/\w+;base64,/, "");
-      logoBuffer = Buffer.from(base64Data, "base64");
-      console.log("📸 Using uploaded logo");
+      logoBuffer = Buffer.from(logo.replace(/^data:image\/\w+;base64,/, ""), "base64");
     } else if (fs.existsSync(LOGO_PATH)) {
       logoBuffer = fs.readFileSync(LOGO_PATH);
-      console.log("📸 Using server default logo");
     }
 
     const qrDataUrl = await generateQRWithLogo(verifyUrl, logoBuffer, { size: 800, logoSize: 0.2, margin: 2 });
 
-    try {
-      const existingProduct = await pool.query("SELECT id FROM products WHERE product_id = $1", [productData.id]);
-      if (existingProduct.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO products (product_id, name, batch, qr_data_url, signed_token, notes) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [productData.id, productData.name, productData.batch || "N/A", qrDataUrl, signedToken, productData.notes || null]
-        );
-        console.log(`✅ Product with logo saved: ${productData.id}`);
-      } else {
-        await pool.query(
-          `UPDATE products SET name = $2, batch = $3, qr_data_url = $4, signed_token = $5 WHERE product_id = $1`,
-          [productData.id, productData.name, productData.batch || "N/A", qrDataUrl, signedToken]
-        );
-        console.log(`✅ Product with logo updated: ${productData.id}`);
-      }
-      await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", [
-        "QR_WITH_LOGO_GENERATED",
-        `Product: ${productData.id} - ${productData.name}`,
-      ]);
-    } catch (dbErr) {
-      console.error("❌ Database error:", dbErr);
+    const existing = await pool.query("SELECT id FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, productData.id]);
+    if (existing.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO products (account_id, product_id, name, batch, qr_data_url, signed_token, notes) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.account.id, productData.id, productData.name, productData.batch || "N/A", qrDataUrl, signedToken, productData.notes || null]
+      );
+    } else {
+      await pool.query(
+        `UPDATE products SET name = $3, batch = $4, qr_data_url = $5, signed_token = $6 WHERE account_id = $1 AND product_id = $2`,
+        [req.account.id, productData.id, productData.name, productData.batch || "N/A", qrDataUrl, signedToken]
+      );
     }
+    await pool.query("INSERT INTO audit_log (account_id, action, details) VALUES ($1, $2, $3)", [
+      req.account.id, "QR_WITH_LOGO_GENERATED", `Product: ${productData.id} - ${productData.name}`,
+    ]);
 
     res.json({ signedToken, verifyUrl, qrDataUrl, productId: productData.id, hasLogo: !!logoBuffer });
   } catch (err) {
@@ -301,16 +551,12 @@ app.post("/sign-qr-with-logo", requireAdmin, adminLimiter, async (req, res) => {
 });
 
 // ================================
-// VERIFY TOKEN
+// VERIFY TOKEN — public, customer-facing
 // ================================
 app.post("/verify-token", verifyLimiter, async (req, res) => {
   const { signedToken } = req.body || {};
-  if (!signedToken) {
-    return res.status(400).json({ valid: false, error: "signedToken missing" });
-  }
-  if (!PUBLIC_KEY) {
-    return res.status(500).json({ valid: false, error: "PUBLIC_KEY not set" });
-  }
+  if (!signedToken) return res.status(400).json({ valid: false, error: "signedToken missing" });
+  if (!PUBLIC_KEY) return res.status(500).json({ valid: false, error: "PUBLIC_KEY not set" });
 
   const ipAddress = getClientIP(req);
   const userAgent = req.headers["user-agent"] || "unknown";
@@ -318,88 +564,85 @@ app.post("/verify-token", verifyLimiter, async (req, res) => {
   try {
     const decoded = jwt.verify(signedToken, PUBLIC_KEY, { algorithms: ["RS256"] });
     const productId = decoded.data.id || "unknown";
+    const accountId = decoded.data.account_id;
 
-    let isActive = true;
-    let inscriptionId = null;
-    try {
-      const productCheck = await pool.query("SELECT is_active, inscription_id FROM products WHERE product_id = $1", [productId]);
-      if (productCheck.rows.length > 0) {
-        isActive = productCheck.rows[0].is_active;
-        inscriptionId = productCheck.rows[0].inscription_id || null;
-      }
-    } catch (dbErr) {
-      console.error("Error checking product status:", dbErr);
+    if (!accountId) {
+      return res.status(400).json({ valid: false, error: "Legacy token format not supported - please regenerate this QR code" });
     }
+
+    const productCheck = await pool.query("SELECT is_active FROM products WHERE account_id = $1 AND product_id = $2", [accountId, productId]);
+    const isActive = productCheck.rows.length === 0 ? true : productCheck.rows[0].is_active;
+
+    const brandResult = await pool.query("SELECT business_name, brand_logo_url, brand_color FROM accounts WHERE id = $1", [accountId]);
+    const brand = brandResult.rows[0] || {};
+
+    const location = await lookupLocation(ipAddress);
 
     if (!isActive) {
       await pool.query(
-        `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [productId, false, "high", ipAddress, userAgent, "Product deactivated"]
+        `INSERT INTO verifications (account_id, product_id, is_valid, risk_level, ip_address, user_agent, location_country, location_city, error_message) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [accountId, productId, false, "high", ipAddress, userAgent, location.country, location.city, "Product deactivated"]
       );
       return res.json({ valid: false, error: "This product has been deactivated", payload: decoded.data, risk: "high" });
     }
 
-    const risk = await calculateRiskLevel(productId);
+    const risk = await calculateRiskLevel(accountId, productId);
 
-    try {
-      await pool.query(
-        `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)`,
-        [productId, true, risk, ipAddress, userAgent]
-      );
-    } catch (dbErr) {
-      console.error("❌ Error saving verification:", dbErr);
-    }
+    await pool.query(
+      `INSERT INTO verifications (account_id, product_id, is_valid, risk_level, ip_address, user_agent, location_country, location_city) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [accountId, productId, true, risk, ipAddress, userAgent, location.country, location.city]
+    );
 
-    let scanCount = 0;
-    try {
-      const countResult = await pool.query("SELECT COUNT(*) as count FROM verifications WHERE product_id = $1", [productId]);
-      scanCount = parseInt(countResult.rows[0].count);
-    } catch (err) {
-      console.error("Error getting scan count:", err);
-    }
+    const countResult = await pool.query("SELECT COUNT(*) as count FROM verifications WHERE account_id = $1 AND product_id = $2", [accountId, productId]);
+    const scanCount = parseInt(countResult.rows[0].count);
 
-    console.log(`✅ Verified product: ${productId} (scan #${scanCount}, risk: ${risk})`);
-    res.json({ valid: true, payload: decoded.data, risk, scanCount, inscriptionId });
+    const productRow = await pool.query("SELECT inscription_id FROM products WHERE account_id = $1 AND product_id = $2", [accountId, productId]);
+    const inscriptionId = productRow.rows[0]?.inscription_id || null;
+
+    res.json({
+      valid: true,
+      payload: decoded.data,
+      risk,
+      scanCount,
+      inscriptionId,
+      location: location.city && location.country ? `${location.city}, ${location.country}` : null,
+      brand: {
+        businessName: brand.business_name || null,
+        logoUrl: brand.brand_logo_url || null,
+        color: brand.brand_color || "#c9a227",
+      },
+    });
   } catch (err) {
     console.error("❌ Verify error:", err.message);
-    try {
-      await pool.query(
-        `INSERT INTO verifications (product_id, is_valid, risk_level, ip_address, user_agent, error_message) VALUES ($1, $2, $3, $4, $5, $6)`,
-        ["unknown", false, "high", ipAddress, userAgent, err.message]
-      );
-    } catch (dbErr) {
-      console.error("Error logging failed verification:", dbErr);
-    }
     res.status(400).json({ valid: false, error: "Invalid or expired token", details: err.message });
   }
 });
 
 // ================================
-// PRODUCTS
+// PRODUCTS (account-scoped)
 // ================================
-app.get("/products", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/products", requireAccount, accountLimiter, async (req, res) => {
   try {
     const { search, active, limit = 50, offset = 0 } = req.query;
-    let query = "SELECT * FROM product_stats WHERE 1=1";
-    const params = [];
-    let paramCount = 1;
+    let query = "SELECT * FROM products WHERE account_id = $1";
+    const params = [req.account.id];
+    let n = 2;
 
     if (search) {
-      query += ` AND (product_id ILIKE $${paramCount} OR name ILIKE $${paramCount})`;
+      query += ` AND (product_id ILIKE $${n} OR name ILIKE $${n})`;
       params.push(`%${search}%`);
-      paramCount++;
+      n++;
     }
     if (active !== undefined) {
-      query += ` AND is_active = $${paramCount}`;
+      query += ` AND is_active = $${n}`;
       params.push(active === "true");
-      paramCount++;
+      n++;
     }
-
-    query += ` ORDER BY created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    query += ` ORDER BY created_at DESC LIMIT $${n} OFFSET $${n + 1}`;
     params.push(parseInt(limit), parseInt(offset));
 
     const result = await pool.query(query, params);
-    const countResult = await pool.query("SELECT COUNT(*) FROM products");
+    const countResult = await pool.query("SELECT COUNT(*) FROM products WHERE account_id = $1", [req.account.id]);
     res.json({ products: result.rows, total: parseInt(countResult.rows[0].count), limit: parseInt(limit), offset: parseInt(offset) });
   } catch (err) {
     console.error("Error fetching products:", err);
@@ -407,68 +650,49 @@ app.get("/products", requireAdmin, adminLimiter, async (req, res) => {
   }
 });
 
-app.get("/products/:id", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/products/:id", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM product_stats WHERE product_id = $1", [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
+    const result = await pool.query("SELECT * FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error fetching product:", err);
     res.status(500).json({ error: "Failed to fetch product" });
   }
 });
 
-app.post("/products/:id/deactivate", requireAdmin, adminLimiter, async (req, res) => {
+app.post("/products/:id/deactivate", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query("UPDATE products SET is_active = false WHERE product_id = $1 RETURNING *", [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-    await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", ["PRODUCT_DEACTIVATED", `Product: ${req.params.id}`]);
+    const result = await pool.query("UPDATE products SET is_active = false WHERE account_id = $1 AND product_id = $2 RETURNING *", [req.account.id, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
+    await pool.query("INSERT INTO audit_log (account_id, action, details) VALUES ($1, $2, $3)", [req.account.id, "PRODUCT_DEACTIVATED", `Product: ${req.params.id}`]);
     res.json({ message: "Product deactivated", product: result.rows[0] });
   } catch (err) {
-    console.error("Error deactivating product:", err);
     res.status(500).json({ error: "Failed to deactivate product" });
   }
 });
 
-app.post("/products/:id/activate", requireAdmin, adminLimiter, async (req, res) => {
+app.post("/products/:id/activate", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query("UPDATE products SET is_active = true WHERE product_id = $1 RETURNING *", [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-    await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", ["PRODUCT_ACTIVATED", `Product: ${req.params.id}`]);
+    const result = await pool.query("UPDATE products SET is_active = true WHERE account_id = $1 AND product_id = $2 RETURNING *", [req.account.id, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
+    await pool.query("INSERT INTO audit_log (account_id, action, details) VALUES ($1, $2, $3)", [req.account.id, "PRODUCT_ACTIVATED", `Product: ${req.params.id}`]);
     res.json({ message: "Product activated", product: result.rows[0] });
   } catch (err) {
-    console.error("Error activating product:", err);
     res.status(500).json({ error: "Failed to activate product" });
   }
 });
 
 // ================================
-// BLOCKCHAIN INSCRIPTION (Doginals)
+// BLOCKCHAIN INSCRIPTION (account-scoped)
 // ================================
-
-// Generate the manifest JSON to inscribe for a product.
-// Inscribe this EXACT output (it includes a hash of the signed token,
-// proving the token existed at inscription time without bloating the chain).
-app.get("/products/:id/manifest", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/products/:id/manifest", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query("SELECT product_id, name, batch, signed_token, notes FROM products WHERE product_id = $1", [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
+    const result = await pool.query("SELECT product_id, name, batch, signed_token, notes FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
     const p = result.rows[0];
-    if (!p.signed_token) {
-      return res.status(400).json({ error: "Product has no signed token yet - generate its QR first" });
-    }
+    if (!p.signed_token) return res.status(400).json({ error: "Product has no signed token yet - generate its QR first" });
 
-    const crypto = await import("crypto");
     const tokenHash = crypto.createHash("sha256").update(p.signed_token).digest("hex");
-
     const manifest = {
       p: "anti-counterfeit-v1",
       product_id: p.product_id,
@@ -478,172 +702,116 @@ app.get("/products/:id/manifest", requireAdmin, adminLimiter, async (req, res) =
       verify: VERIFY_BASE_URL,
       ts: new Date().toISOString().slice(0, 10),
     };
-
     res.json({
       manifest,
       inscribeThis: JSON.stringify(manifest),
       instructions: "Inscribe the 'inscribeThis' string as text/plain via a Doginals inscription service, then POST the resulting inscription ID to /products/:id/inscription",
     });
   } catch (err) {
-    console.error("Error building manifest:", err);
     res.status(500).json({ error: "Failed to build manifest" });
   }
 });
 
-// Record the inscription ID after inscribing (one-time, final step per product).
-app.post("/products/:id/inscription", requireAdmin, adminLimiter, async (req, res) => {
+app.post("/products/:id/inscription", requireAccount, accountLimiter, async (req, res) => {
   try {
     const { inscriptionId } = req.body || {};
     if (!inscriptionId || typeof inscriptionId !== "string" || inscriptionId.length > 200) {
       return res.status(400).json({ error: "inscriptionId (string) required" });
     }
-
-    const existing = await pool.query("SELECT inscription_id FROM products WHERE product_id = $1", [req.params.id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
-    }
+    const existing = await pool.query("SELECT inscription_id FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, req.params.id]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: "Product not found" });
     if (existing.rows[0].inscription_id) {
-      return res.status(409).json({
-        error: "Product already has an inscription recorded - inscriptions are permanent, refusing to overwrite",
-        current: existing.rows[0].inscription_id,
-      });
+      return res.status(409).json({ error: "Product already has an inscription recorded - inscriptions are permanent", current: existing.rows[0].inscription_id });
     }
-
     const result = await pool.query(
-      "UPDATE products SET inscription_id = $2 WHERE product_id = $1 RETURNING product_id, inscription_id",
-      [req.params.id, inscriptionId.trim()]
+      "UPDATE products SET inscription_id = $3 WHERE account_id = $1 AND product_id = $2 RETURNING product_id, inscription_id",
+      [req.account.id, req.params.id, inscriptionId.trim()]
     );
-    await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", [
-      "INSCRIPTION_RECORDED",
-      `Product: ${req.params.id} → ${inscriptionId.trim()}`,
-    ]);
+    await pool.query("INSERT INTO audit_log (account_id, action, details) VALUES ($1, $2, $3)", [req.account.id, "INSCRIPTION_RECORDED", `Product: ${req.params.id} → ${inscriptionId.trim()}`]);
     res.json({ message: "Inscription recorded", product: result.rows[0] });
   } catch (err) {
-    console.error("Error recording inscription:", err);
     res.status(500).json({ error: "Failed to record inscription" });
   }
 });
 
 // ================================
-// VERIFICATIONS
+// VERIFICATIONS (account-scoped)
 // ================================
-app.get("/verifications", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/verifications", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const { product_id, risk, from, to, limit = 100, offset = 0 } = req.query;
-    let query = "SELECT * FROM verifications WHERE 1=1";
-    const params = [];
-    let paramCount = 1;
-
-    if (product_id) {
-      query += ` AND product_id = $${paramCount}`;
-      params.push(product_id);
-      paramCount++;
-    }
-    if (risk) {
-      query += ` AND risk_level = $${paramCount}`;
-      params.push(risk);
-      paramCount++;
-    }
-    if (from) {
-      query += ` AND verified_at >= $${paramCount}`;
-      params.push(from);
-      paramCount++;
-    }
-    if (to) {
-      query += ` AND verified_at <= $${paramCount}`;
-      params.push(to);
-      paramCount++;
-    }
-
-    query += ` ORDER BY verified_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    const { product_id, risk, limit = 100, offset = 0 } = req.query;
+    let query = "SELECT * FROM verifications WHERE account_id = $1";
+    const params = [req.account.id];
+    let n = 2;
+    if (product_id) { query += ` AND product_id = $${n}`; params.push(product_id); n++; }
+    if (risk) { query += ` AND risk_level = $${n}`; params.push(risk); n++; }
+    query += ` ORDER BY verified_at DESC LIMIT $${n} OFFSET $${n + 1}`;
     params.push(parseInt(limit), parseInt(offset));
-
     const result = await pool.query(query, params);
     res.json({ verifications: result.rows, limit: parseInt(limit), offset: parseInt(offset) });
   } catch (err) {
-    console.error("Error fetching verifications:", err);
     res.status(500).json({ error: "Failed to fetch verifications" });
   }
 });
 
-app.get("/verifications/suspicious", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/analytics/overview", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM suspicious_activity LIMIT 100");
-    res.json(result.rows);
+    const stats = await pool.query(
+      `SELECT
+        (SELECT COUNT(*) FROM products WHERE account_id = $1) as total_products,
+        (SELECT COUNT(*) FROM products WHERE account_id = $1 AND is_active = true) as active_products,
+        (SELECT COUNT(*) FROM verifications WHERE account_id = $1) as total_verifications,
+        (SELECT COUNT(*) FROM verifications WHERE account_id = $1 AND verified_at > NOW() - INTERVAL '24 hours') as verifications_today,
+        (SELECT COUNT(*) FROM verifications WHERE account_id = $1 AND risk_level = 'high') as high_risk_verifications,
+        (SELECT COUNT(*) FROM products WHERE account_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)) as used_this_month`,
+      [req.account.id]
+    );
+    res.json({ ...stats.rows[0], planLimit: req.account.plan_product_limit, plan: req.account.plan });
   } catch (err) {
-    console.error("Error fetching suspicious activity:", err);
-    res.status(500).json({ error: "Failed to fetch suspicious activity" });
-  }
-});
-
-// ================================
-// ANALYTICS
-// ================================
-app.get("/analytics/overview", requireAdmin, adminLimiter, async (req, res) => {
-  try {
-    const stats = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM products) as total_products,
-        (SELECT COUNT(*) FROM products WHERE is_active = true) as active_products,
-        (SELECT COUNT(*) FROM verifications) as total_verifications,
-        (SELECT COUNT(*) FROM verifications WHERE verified_at > NOW() - INTERVAL '24 hours') as verifications_today,
-        (SELECT COUNT(*) FROM verifications WHERE risk_level = 'high') as high_risk_verifications
-    `);
-    res.json(stats.rows[0]);
-  } catch (err) {
-    console.error("Error fetching analytics:", err);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 
-app.get("/analytics/by-date", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/analytics/by-date", requireAccount, accountLimiter, async (req, res) => {
   try {
     const { days = 30 } = req.query;
     const safeDays = Math.min(Math.max(parseInt(days) || 30, 1), 365);
     const result = await pool.query(
-      "SELECT * FROM daily_stats WHERE date > CURRENT_DATE - ($1 || ' days')::INTERVAL ORDER BY date ASC",
-      [safeDays]
+      `SELECT DATE(verified_at) as date, COUNT(*) as total_verifications,
+              COUNT(CASE WHEN risk_level = 'low' THEN 1 END) as low_risk,
+              COUNT(CASE WHEN risk_level = 'medium' THEN 1 END) as medium_risk,
+              COUNT(CASE WHEN risk_level = 'high' THEN 1 END) as high_risk
+       FROM verifications
+       WHERE account_id = $1 AND verified_at > CURRENT_DATE - ($2 || ' days')::INTERVAL
+       GROUP BY DATE(verified_at) ORDER BY date ASC`,
+      [req.account.id, safeDays]
     );
     res.json(result.rows);
   } catch (err) {
-    console.error("Error fetching date analytics:", err);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 
-app.get("/analytics/by-product", requireAdmin, adminLimiter, async (req, res) => {
+app.get("/analytics/by-product", requireAccount, accountLimiter, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT p.product_id, p.name, COUNT(v.id) as verification_count
-      FROM products p
-      LEFT JOIN verifications v ON p.product_id = v.product_id
-      GROUP BY p.product_id, p.name
-      ORDER BY verification_count DESC
-      LIMIT 20
-    `);
+    const result = await pool.query(
+      `SELECT p.product_id, p.name, COUNT(v.id) as verification_count
+       FROM products p
+       LEFT JOIN verifications v ON p.account_id = v.account_id AND p.product_id = v.product_id
+       WHERE p.account_id = $1
+       GROUP BY p.product_id, p.name
+       ORDER BY verification_count DESC LIMIT 20`,
+      [req.account.id]
+    );
     res.json(result.rows);
   } catch (err) {
-    console.error("Error fetching product analytics:", err);
-    res.status(500).json({ error: "Failed to fetch analytics" });
+    res.status(500).json({ error: "Failed to fetch product analytics" });
   }
 });
 
 // ================================
-// BACKUP / EXPORT
+// EXPORTS
 // ================================
-function checkExportKey(req, res) {
-  const providedKey = req.query.key;
-  if (!EXPORT_KEY) {
-    res.status(500).json({ error: "EXPORT_KEY not configured on server" });
-    return false;
-  }
-  if (!providedKey || providedKey !== EXPORT_KEY) {
-    res.status(403).json({ error: "Invalid or missing export key" });
-    return false;
-  }
-  return true;
-}
-
 function toCSV(rows) {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
@@ -652,56 +820,46 @@ function toCSV(rows) {
     const str = typeof val === "object" ? JSON.stringify(val) : String(val);
     return `"${str.replace(/"/g, '""')}"`;
   };
-  const lines = [headers.join(",")];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escape(row[h])).join(","));
-  }
-  return lines.join("\n");
+  return [headers.join(","), ...rows.map((row) => headers.map((h) => escape(row[h])).join(","))].join("\n");
 }
 
-// Full backup of every product: includes qr_data_url (the actual QR image)
-// and signed_token (what the QR encodes). This is the critical data to
-// keep an off-site copy of for anything tagging physical merchandise.
-app.get("/export/products", exportLimiter, async (req, res) => {
-  if (!checkExportKey(req, res)) return;
-
+// Per-customer export of their own data
+app.get("/export/products", requireAccount, exportLimiter, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM products ORDER BY created_at ASC");
-    const format = req.query.format === "csv" ? "csv" : "json";
-
-    if (format === "csv") {
+    const result = await pool.query("SELECT * FROM products WHERE account_id = $1 ORDER BY created_at ASC", [req.account.id]);
+    if (req.query.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", `attachment; filename="products-backup-${Date.now()}.csv"`);
       return res.send(toCSV(result.rows));
     }
-
-    res.setHeader("Content-Disposition", `attachment; filename="products-backup-${Date.now()}.json"`);
     res.json({ exportedAt: new Date().toISOString(), count: result.rows.length, products: result.rows });
   } catch (err) {
-    console.error("Error exporting products:", err);
     res.status(500).json({ error: "Failed to export products" });
   }
 });
 
-// Full backup of every verification/scan event (the audit trail)
-app.get("/export/verifications", exportLimiter, async (req, res) => {
-  if (!checkExportKey(req, res)) return;
-
+app.get("/export/verifications", requireAccount, exportLimiter, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM verifications ORDER BY verified_at ASC");
-    const format = req.query.format === "csv" ? "csv" : "json";
-
-    if (format === "csv") {
+    const result = await pool.query("SELECT * FROM verifications WHERE account_id = $1 ORDER BY verified_at ASC", [req.account.id]);
+    if (req.query.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", `attachment; filename="verifications-backup-${Date.now()}.csv"`);
       return res.send(toCSV(result.rows));
     }
-
-    res.setHeader("Content-Disposition", `attachment; filename="verifications-backup-${Date.now()}.json"`);
     res.json({ exportedAt: new Date().toISOString(), count: result.rows.length, verifications: result.rows });
   } catch (err) {
-    console.error("Error exporting verifications:", err);
     res.status(500).json({ error: "Failed to export verifications" });
+  }
+});
+
+// Platform-level full backup across ALL accounts (you, not customers)
+app.get("/admin/export/all", requireSuperAdmin, exportLimiter, async (req, res) => {
+  if (!checkExportKey(req, res)) return;
+  try {
+    const result = await pool.query("SELECT * FROM products ORDER BY account_id, created_at ASC");
+    res.json({ exportedAt: new Date().toISOString(), count: result.rows.length, products: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to export" });
   }
 });
 
@@ -710,41 +868,16 @@ app.get("/export/verifications", exportLimiter, async (req, res) => {
 // ================================
 app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
-  console.log(`📊 Endpoints available:`);
-  console.log(`   GET  /                       - Health check`);
-  console.log(`   POST /sign-qr                - Generate QR (no logo)`);
-  console.log(`   POST /sign-qr-with-logo      - Generate QR WITH logo`);
-  console.log(`   POST /verify-token           - Verify authenticity`);
-  console.log(`   GET  /products               - List products`);
-  console.log(`   GET  /analytics/overview     - Analytics`);
-  console.log(`   GET  /export/products        - Backup export (requires EXPORT_KEY)`);
-  console.log(`   GET  /export/verifications   - Backup export (requires EXPORT_KEY)`);
+  console.log(`🔐 Multi-tenant auth: each account uses its own x-api-key`);
 
-  if (!EXPORT_KEY) {
-    console.warn(`⚠️  WARNING: EXPORT_KEY not set - backup export endpoints are disabled`);
-  }
+  if (!PRIVATE_KEY || !PUBLIC_KEY) console.warn(`⚠️  WARNING: Signing keys not set!`);
+  else console.log(`✅ Cryptographic keys loaded`);
 
-  if (!ADMIN_KEY) {
-    console.warn(`🔴 CRITICAL: ADMIN_KEY not set - QR generation and admin endpoints are DISABLED until it is configured`);
-  } else {
-    console.log(`🔒 Admin endpoints protected (ADMIN_KEY set)`);
-  }
+  if (!process.env.DATABASE_URL) console.error(`❌ DATABASE_URL not set!`);
 
-  console.log(`🌐 CORS allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
-
-  if (!PRIVATE_KEY || !PUBLIC_KEY) {
-    console.warn(`⚠️  WARNING: Keys not set!`);
-  } else {
-    console.log(`✅ Cryptographic keys loaded`);
-  }
-
-  if (!process.env.DATABASE_URL) {
-    console.error(`❌ DATABASE_URL not set!`);
-  }
-
-  if (fs.existsSync(LOGO_PATH)) {
-    console.log(`🎨 Default logo found: ${LOGO_PATH}`);
-  } else {
-    console.log(`ℹ️  No default logo - clients can upload their own`);
-  }
+  if (!ADMIN_KEY) console.warn(`⚠️  ADMIN_KEY not set - platform superadmin endpoints disabled`);
+  if (!EXPORT_KEY) console.warn(`⚠️  EXPORT_KEY not set - platform-wide backup export disabled`);
+  if (!stripe) console.warn(`⚠️  STRIPE_SECRET_KEY not set - billing endpoints disabled`);
+  else if (!STRIPE_WEBHOOK_SECRET) console.warn(`⚠️  STRIPE_WEBHOOK_SECRET not set - webhook verification will fail`);
+  else console.log(`✅ Stripe billing configured`);
 });

@@ -485,30 +485,27 @@
   <script>
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
 
-    // Admin key: required by the backend for all dashboard data.
-    // Stored only in sessionStorage (cleared when the tab closes).
-    function getAdminKey(forcePrompt = false) {
-      let key = sessionStorage.getItem('adminKey');
-      if (!key || forcePrompt) {
-        key = prompt('Enter your admin key to access the dashboard:');
-        if (key) sessionStorage.setItem('adminKey', key.trim());
+    // Each account uses its own API key, set during login (see login.html).
+    // If there's no key in this session, send them to log in first.
+    function getApiKey() {
+      const key = sessionStorage.getItem('apiKey');
+      if (!key) {
+        window.location.href = 'login.html';
+        return null;
       }
-      return key ? key.trim() : null;
+      return key;
     }
 
-    // Wrapper that attaches the admin key header to every request
-    // and re-prompts once if the key is rejected.
+    // Wrapper that attaches the API key header to every request and
+    // sends the user back to login if the key is invalid or expired.
     async function authFetch(url, options = {}) {
-      const key = getAdminKey();
-      options.headers = { ...(options.headers || {}), 'x-admin-key': key || '' };
-      let response = await fetch(url, options);
-      if (response.status === 403) {
-        sessionStorage.removeItem('adminKey');
-        const retryKey = getAdminKey(true);
-        if (retryKey) {
-          options.headers['x-admin-key'] = retryKey;
-          response = await fetch(url, options);
-        }
+      const key = getApiKey();
+      if (!key) return new Response(JSON.stringify({ error: "Not logged in" }), { status: 401 });
+      options.headers = { ...(options.headers || {}), 'x-api-key': key };
+      const response = await fetch(url, options);
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem('apiKey');
+        window.location.href = 'login.html';
       }
       return response;
     }

@@ -495,15 +495,14 @@
   <script>
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
 
-    // Admin key: required by the backend for QR generation.
-    // Stored only in sessionStorage (cleared when the tab closes).
-    function getAdminKey(forcePrompt = false) {
-      let key = sessionStorage.getItem('adminKey');
-      if (!key || forcePrompt) {
-        key = prompt('Enter your admin key to generate QR codes:');
-        if (key) sessionStorage.setItem('adminKey', key.trim());
+    // Each account uses its own API key, set during login (see login.html).
+    function getApiKey() {
+      const key = sessionStorage.getItem('apiKey');
+      if (!key) {
+        window.location.href = 'login.html';
+        return null;
       }
-      return key ? key.trim() : null;
+      return key;
     }
     
     const form = document.getElementById('qrForm');
@@ -592,20 +591,23 @@
 
         console.log(`Calling ${API_URL}${endpoint}`);
 
-        const adminKey = getAdminKey();
-        if (!adminKey) {
-          throw new Error('Admin key is required to generate QR codes');
-        }
+        const apiKey = getApiKey();
+        if (!apiKey) return;
 
         const response = await fetch(`${API_URL}${endpoint}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
           body: JSON.stringify(payload)
         });
 
-        if (response.status === 403) {
-          sessionStorage.removeItem('adminKey');
-          throw new Error('Invalid admin key - please try again');
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem('apiKey');
+          window.location.href = 'login.html';
+          return;
+        }
+        if (response.status === 402) {
+          const error = await response.json();
+          throw new Error(error.error || 'Subscription inactive - please check your billing');
         }
 
         if (!response.ok) {
