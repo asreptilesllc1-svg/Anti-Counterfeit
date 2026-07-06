@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <title>Product Verification</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 
 <style>
 body {
@@ -85,7 +87,7 @@ if (!token) {
         <div><strong>Name:</strong> ${data.payload.name}</div>
         <div><strong>Batch:</strong> ${data.payload.batch}</div>
         <div><strong>Scans:</strong> ${data.scanCount}</div>
-        <div><strong>Location:</strong> ${data.location}</div>
+        ${data.inscriptionId ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.15);"><strong>⛓️ Inscribed on Dogecoin</strong><br><a href="https://wonky-ord.dogeord.io/inscription/${encodeURIComponent(data.inscriptionId)}" target="_blank" rel="noopener" style="color:#00ffcc;word-break:break-all;font-size:13px;">View permanent on-chain record</a></div>` : ""}
       </div>
     `;
   })

@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>Admin Dashboard - Anti-Counterfeit System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -482,6 +484,34 @@
 
   <script>
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+
+    // Admin key: required by the backend for all dashboard data.
+    // Stored only in sessionStorage (cleared when the tab closes).
+    function getAdminKey(forcePrompt = false) {
+      let key = sessionStorage.getItem('adminKey');
+      if (!key || forcePrompt) {
+        key = prompt('Enter your admin key to access the dashboard:');
+        if (key) sessionStorage.setItem('adminKey', key.trim());
+      }
+      return key ? key.trim() : null;
+    }
+
+    // Wrapper that attaches the admin key header to every request
+    // and re-prompts once if the key is rejected.
+    async function authFetch(url, options = {}) {
+      const key = getAdminKey();
+      options.headers = { ...(options.headers || {}), 'x-admin-key': key || '' };
+      let response = await fetch(url, options);
+      if (response.status === 403) {
+        sessionStorage.removeItem('adminKey');
+        const retryKey = getAdminKey(true);
+        if (retryKey) {
+          options.headers['x-admin-key'] = retryKey;
+          response = await fetch(url, options);
+        }
+      }
+      return response;
+    }
     let allProducts = [];
     let allVerifications = [];
 
@@ -509,7 +539,7 @@
     // Load Overview
     async function loadOverview() {
       try {
-        const response = await fetch(`${API_URL}/analytics/overview`);
+        const response = await authFetch(`${API_URL}/analytics/overview`);
         const stats = await response.json();
 
         document.getElementById('statsGrid').innerHTML = `
@@ -536,7 +566,7 @@
         `;
 
         // Load recent verifications
-        const verifsResponse = await fetch(`${API_URL}/verifications?limit=5`);
+        const verifsResponse = await authFetch(`${API_URL}/verifications?limit=5`);
         const verifs = await verifsResponse.json();
 
         if (verifs.verifications && verifs.verifications.length > 0) {
@@ -584,7 +614,7 @@
     // Load Products
     async function loadProducts() {
       try {
-        const response = await fetch(`${API_URL}/products?limit=100`);
+        const response = await authFetch(`${API_URL}/products?limit=100`);
         const data = await response.json();
         allProducts = data.products || [];
 
@@ -656,7 +686,7 @@
       if (!confirm(`Deactivate product ${productId}? This will mark it as invalid.`)) return;
 
       try {
-        const response = await fetch(`${API_URL}/products/${productId}/deactivate`, {
+        const response = await authFetch(`${API_URL}/products/${productId}/deactivate`, {
           method: 'POST'
         });
         
@@ -674,7 +704,7 @@
 
     async function activateProduct(productId) {
       try {
-        const response = await fetch(`${API_URL}/products/${productId}/activate`, {
+        const response = await authFetch(`${API_URL}/products/${productId}/activate`, {
           method: 'POST'
         });
         
@@ -693,7 +723,7 @@
     // Load Verifications
     async function loadVerifications() {
       try {
-        const response = await fetch(`${API_URL}/verifications?limit=100`);
+        const response = await authFetch(`${API_URL}/verifications?limit=100`);
         const data = await response.json();
         allVerifications = data.verifications || [];
 
@@ -759,7 +789,7 @@
     async function loadAnalytics() {
       try {
         // Load chart data
-        const response = await fetch(`${API_URL}/analytics/by-date?days=30`);
+        const response = await authFetch(`${API_URL}/analytics/by-date?days=30`);
         const data = await response.json();
 
         if (data && data.length > 0) {
@@ -805,7 +835,7 @@
         }
 
         // Load top products
-        const topResponse = await fetch(`${API_URL}/analytics/by-product`);
+        const topResponse = await authFetch(`${API_URL}/analytics/by-product`);
         const topData = await topResponse.json();
 
         if (topData && topData.length > 0) {

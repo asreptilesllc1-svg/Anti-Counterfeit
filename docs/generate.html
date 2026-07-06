@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>Generate Anti-Counterfeit QR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@600;700;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -492,6 +494,17 @@
 
   <script>
     const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+
+    // Admin key: required by the backend for QR generation.
+    // Stored only in sessionStorage (cleared when the tab closes).
+    function getAdminKey(forcePrompt = false) {
+      let key = sessionStorage.getItem('adminKey');
+      if (!key || forcePrompt) {
+        key = prompt('Enter your admin key to generate QR codes:');
+        if (key) sessionStorage.setItem('adminKey', key.trim());
+      }
+      return key ? key.trim() : null;
+    }
     
     const form = document.getElementById('qrForm');
     const result = document.getElementById('result');
@@ -579,11 +592,21 @@
 
         console.log(`Calling ${API_URL}${endpoint}`);
 
+        const adminKey = getAdminKey();
+        if (!adminKey) {
+          throw new Error('Admin key is required to generate QR codes');
+        }
+
         const response = await fetch(`${API_URL}${endpoint}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
           body: JSON.stringify(payload)
         });
+
+        if (response.status === 403) {
+          sessionStorage.removeItem('adminKey');
+          throw new Error('Invalid admin key - please try again');
+        }
 
         if (!response.ok) {
           const error = await response.json();

@@ -9,7 +9,26 @@ import fs from "fs";
 const { Pool } = pg;
 const app = express();
 
-app.use(cors());
+// ================================
+// CORS — locked to the verification site only.
+// (Server-to-server tools like PowerShell are unaffected; CORS governs browsers.)
+// ================================
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "https://verify.myproductauth.com")
+  .split(",")
+  .map((o) => o.trim());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no Origin header (curl, PowerShell, mobile apps, same-origin)
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+  })
+);
+
 app.use(express.json({ limit: "10mb" }));
 
 // ================================
@@ -20,6 +39,7 @@ const PUBLIC_KEY = process.env.PUBLIC_KEY;
 const PORT = process.env.PORT || 10000;
 const VERIFY_BASE_URL = process.env.VERIFY_BASE_URL || "https://verify.myproductauth.com";
 const EXPORT_KEY = process.env.EXPORT_KEY;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 const LOGO_PATH = "./logo.png";
 
 const pool = new Pool({
@@ -101,6 +121,56 @@ async function generateQRWithLogo(data, logoBuffer, options = {}) {
 }
 
 // ================================
+// SECURITY MIDDLEWARE
+// ================================
+
+// Admin authentication — required for anything that creates, changes,
+// or reveals business data. Key is sent in the "x-admin-key" header.
+function requireAdmin(req, res, next) {
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ error: "ADMIN_KEY not configured on server - admin endpoints disabled" });
+  }
+  const provided = req.headers["x-admin-key"];
+  if (!provided || provided !== ADMIN_KEY) {
+    return res.status(403).json({ error: "Invalid or missing admin key" });
+  }
+  next();
+}
+
+// Lightweight in-memory rate limiter (per IP, per window).
+// Suitable for a single-instance service; resets on restart.
+const rateBuckets = new Map();
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = getClientIP(req);
+    const key = `${req.path}:${ip}`;
+    let bucket = rateBuckets.get(key);
+    if (!bucket || now - bucket.start > windowMs) {
+      bucket = { start: now, count: 0 };
+      rateBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > max) {
+      return res.status(429).json({ error: "Too many requests - slow down" });
+    }
+    next();
+  };
+}
+
+// Periodically clean old buckets so the map doesn't grow forever
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (now - bucket.start > 15 * 60 * 1000) rateBuckets.delete(key);
+  }
+}, 10 * 60 * 1000).unref();
+
+const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // 30 verifications/min per IP
+const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });    // 60 admin ops/min per IP
+const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });    // 5 exports/min per IP
+
+// ================================
 // HEALTH CHECK
 // ================================
 app.get("/", async (req, res) => {
@@ -108,21 +178,19 @@ app.get("/", async (req, res) => {
     const dbCheck = await pool.query("SELECT NOW()");
     res.json({
       status: "ok",
-      message: "Anti-counterfeit backend running",
       database: "connected",
       timestamp: dbCheck.rows[0].now,
-      endpoints: ["/sign-qr", "/sign-qr-with-logo", "/verify-token", "/products", "/verifications", "/analytics", "/export/products", "/export/verifications"],
-      version: "1.1.0",
+      version: "1.2.0",
     });
   } catch (err) {
-    res.status(500).json({ status: "error", message: "Database connection failed", error: err.message });
+    res.status(500).json({ status: "error", message: "Database connection failed" });
   }
 });
 
 // ================================
 // SIGN + QR (no logo)
 // ================================
-app.post("/sign-qr", async (req, res) => {
+app.post("/sign-qr", requireAdmin, adminLimiter, async (req, res) => {
   const payload =
     req.body && Object.keys(req.body).length
       ? req.body
@@ -175,7 +243,7 @@ app.post("/sign-qr", async (req, res) => {
 // ================================
 // SIGN + QR (with logo)
 // ================================
-app.post("/sign-qr-with-logo", async (req, res) => {
+app.post("/sign-qr-with-logo", requireAdmin, adminLimiter, async (req, res) => {
   const { logo, ...payload } = req.body;
   const productData =
     Object.keys(payload).length > 0
@@ -235,7 +303,7 @@ app.post("/sign-qr-with-logo", async (req, res) => {
 // ================================
 // VERIFY TOKEN
 // ================================
-app.post("/verify-token", async (req, res) => {
+app.post("/verify-token", verifyLimiter, async (req, res) => {
   const { signedToken } = req.body || {};
   if (!signedToken) {
     return res.status(400).json({ valid: false, error: "signedToken missing" });
@@ -252,10 +320,12 @@ app.post("/verify-token", async (req, res) => {
     const productId = decoded.data.id || "unknown";
 
     let isActive = true;
+    let inscriptionId = null;
     try {
-      const productCheck = await pool.query("SELECT is_active FROM products WHERE product_id = $1", [productId]);
+      const productCheck = await pool.query("SELECT is_active, inscription_id FROM products WHERE product_id = $1", [productId]);
       if (productCheck.rows.length > 0) {
         isActive = productCheck.rows[0].is_active;
+        inscriptionId = productCheck.rows[0].inscription_id || null;
       }
     } catch (dbErr) {
       console.error("Error checking product status:", dbErr);
@@ -289,7 +359,7 @@ app.post("/verify-token", async (req, res) => {
     }
 
     console.log(`✅ Verified product: ${productId} (scan #${scanCount}, risk: ${risk})`);
-    res.json({ valid: true, payload: decoded.data, risk, scanCount });
+    res.json({ valid: true, payload: decoded.data, risk, scanCount, inscriptionId });
   } catch (err) {
     console.error("❌ Verify error:", err.message);
     try {
@@ -307,7 +377,7 @@ app.post("/verify-token", async (req, res) => {
 // ================================
 // PRODUCTS
 // ================================
-app.get("/products", async (req, res) => {
+app.get("/products", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const { search, active, limit = 50, offset = 0 } = req.query;
     let query = "SELECT * FROM product_stats WHERE 1=1";
@@ -337,7 +407,7 @@ app.get("/products", async (req, res) => {
   }
 });
 
-app.get("/products/:id", async (req, res) => {
+app.get("/products/:id", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM product_stats WHERE product_id = $1", [req.params.id]);
     if (result.rows.length === 0) {
@@ -350,7 +420,7 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-app.post("/products/:id/deactivate", async (req, res) => {
+app.post("/products/:id/deactivate", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const result = await pool.query("UPDATE products SET is_active = false WHERE product_id = $1 RETURNING *", [req.params.id]);
     if (result.rows.length === 0) {
@@ -364,7 +434,7 @@ app.post("/products/:id/deactivate", async (req, res) => {
   }
 });
 
-app.post("/products/:id/activate", async (req, res) => {
+app.post("/products/:id/activate", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const result = await pool.query("UPDATE products SET is_active = true WHERE product_id = $1 RETURNING *", [req.params.id]);
     if (result.rows.length === 0) {
@@ -379,9 +449,85 @@ app.post("/products/:id/activate", async (req, res) => {
 });
 
 // ================================
+// BLOCKCHAIN INSCRIPTION (Doginals)
+// ================================
+
+// Generate the manifest JSON to inscribe for a product.
+// Inscribe this EXACT output (it includes a hash of the signed token,
+// proving the token existed at inscription time without bloating the chain).
+app.get("/products/:id/manifest", requireAdmin, adminLimiter, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT product_id, name, batch, signed_token, notes FROM products WHERE product_id = $1", [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    const p = result.rows[0];
+    if (!p.signed_token) {
+      return res.status(400).json({ error: "Product has no signed token yet - generate its QR first" });
+    }
+
+    const crypto = await import("crypto");
+    const tokenHash = crypto.createHash("sha256").update(p.signed_token).digest("hex");
+
+    const manifest = {
+      p: "anti-counterfeit-v1",
+      product_id: p.product_id,
+      name: p.name,
+      batch: p.batch || undefined,
+      token_sha256: tokenHash,
+      verify: VERIFY_BASE_URL,
+      ts: new Date().toISOString().slice(0, 10),
+    };
+
+    res.json({
+      manifest,
+      inscribeThis: JSON.stringify(manifest),
+      instructions: "Inscribe the 'inscribeThis' string as text/plain via a Doginals inscription service, then POST the resulting inscription ID to /products/:id/inscription",
+    });
+  } catch (err) {
+    console.error("Error building manifest:", err);
+    res.status(500).json({ error: "Failed to build manifest" });
+  }
+});
+
+// Record the inscription ID after inscribing (one-time, final step per product).
+app.post("/products/:id/inscription", requireAdmin, adminLimiter, async (req, res) => {
+  try {
+    const { inscriptionId } = req.body || {};
+    if (!inscriptionId || typeof inscriptionId !== "string" || inscriptionId.length > 200) {
+      return res.status(400).json({ error: "inscriptionId (string) required" });
+    }
+
+    const existing = await pool.query("SELECT inscription_id FROM products WHERE product_id = $1", [req.params.id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    if (existing.rows[0].inscription_id) {
+      return res.status(409).json({
+        error: "Product already has an inscription recorded - inscriptions are permanent, refusing to overwrite",
+        current: existing.rows[0].inscription_id,
+      });
+    }
+
+    const result = await pool.query(
+      "UPDATE products SET inscription_id = $2 WHERE product_id = $1 RETURNING product_id, inscription_id",
+      [req.params.id, inscriptionId.trim()]
+    );
+    await pool.query("INSERT INTO audit_log (action, details) VALUES ($1, $2)", [
+      "INSCRIPTION_RECORDED",
+      `Product: ${req.params.id} → ${inscriptionId.trim()}`,
+    ]);
+    res.json({ message: "Inscription recorded", product: result.rows[0] });
+  } catch (err) {
+    console.error("Error recording inscription:", err);
+    res.status(500).json({ error: "Failed to record inscription" });
+  }
+});
+
+// ================================
 // VERIFICATIONS
 // ================================
-app.get("/verifications", async (req, res) => {
+app.get("/verifications", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const { product_id, risk, from, to, limit = 100, offset = 0 } = req.query;
     let query = "SELECT * FROM verifications WHERE 1=1";
@@ -420,7 +566,7 @@ app.get("/verifications", async (req, res) => {
   }
 });
 
-app.get("/verifications/suspicious", async (req, res) => {
+app.get("/verifications/suspicious", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM suspicious_activity LIMIT 100");
     res.json(result.rows);
@@ -433,7 +579,7 @@ app.get("/verifications/suspicious", async (req, res) => {
 // ================================
 // ANALYTICS
 // ================================
-app.get("/analytics/overview", async (req, res) => {
+app.get("/analytics/overview", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const stats = await pool.query(`
       SELECT
@@ -450,11 +596,13 @@ app.get("/analytics/overview", async (req, res) => {
   }
 });
 
-app.get("/analytics/by-date", async (req, res) => {
+app.get("/analytics/by-date", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const { days = 30 } = req.query;
+    const safeDays = Math.min(Math.max(parseInt(days) || 30, 1), 365);
     const result = await pool.query(
-      `SELECT * FROM daily_stats WHERE date > CURRENT_DATE - INTERVAL '${parseInt(days)} days' ORDER BY date ASC`
+      "SELECT * FROM daily_stats WHERE date > CURRENT_DATE - ($1 || ' days')::INTERVAL ORDER BY date ASC",
+      [safeDays]
     );
     res.json(result.rows);
   } catch (err) {
@@ -463,7 +611,7 @@ app.get("/analytics/by-date", async (req, res) => {
   }
 });
 
-app.get("/analytics/by-product", async (req, res) => {
+app.get("/analytics/by-product", requireAdmin, adminLimiter, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT p.product_id, p.name, COUNT(v.id) as verification_count
@@ -514,7 +662,7 @@ function toCSV(rows) {
 // Full backup of every product: includes qr_data_url (the actual QR image)
 // and signed_token (what the QR encodes). This is the critical data to
 // keep an off-site copy of for anything tagging physical merchandise.
-app.get("/export/products", async (req, res) => {
+app.get("/export/products", exportLimiter, async (req, res) => {
   if (!checkExportKey(req, res)) return;
 
   try {
@@ -536,7 +684,7 @@ app.get("/export/products", async (req, res) => {
 });
 
 // Full backup of every verification/scan event (the audit trail)
-app.get("/export/verifications", async (req, res) => {
+app.get("/export/verifications", exportLimiter, async (req, res) => {
   if (!checkExportKey(req, res)) return;
 
   try {
@@ -575,6 +723,14 @@ app.listen(PORT, () => {
   if (!EXPORT_KEY) {
     console.warn(`⚠️  WARNING: EXPORT_KEY not set - backup export endpoints are disabled`);
   }
+
+  if (!ADMIN_KEY) {
+    console.warn(`🔴 CRITICAL: ADMIN_KEY not set - QR generation and admin endpoints are DISABLED until it is configured`);
+  } else {
+    console.log(`🔒 Admin endpoints protected (ADMIN_KEY set)`);
+  }
+
+  console.log(`🌐 CORS allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
 
   if (!PRIVATE_KEY || !PUBLIC_KEY) {
     console.warn(`⚠️  WARNING: Keys not set!`);

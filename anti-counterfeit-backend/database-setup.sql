@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS products (
   notes TEXT,
   created_by VARCHAR(100),
   qr_data_url TEXT,
-  signed_token TEXT
+  signed_token TEXT,
+  inscription_id VARCHAR(200)
 );
 
 -- Index for fast lookups
