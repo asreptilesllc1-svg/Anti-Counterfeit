@@ -47,12 +47,24 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 3. Add a webhook endpoint pointing to `https://your-backend.onrender.com/webhooks/stripe`, subscribed to: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
 4. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`
 
+### 5. Email (Brevo)
+1. Sign up at [brevo.com](https://www.brevo.com) with a **fresh account** (not shared with any other project/domain) — free tier is 300 emails/day, no domain-count limit
+2. Add and verify your domain (`myproductauth.com`) under Senders & Domains — this means adding a few DNS records (SPF/DKIM) at your domain registrar (Namecheap)
+3. Create an API key (SMTP & API → API Keys), set `BREVO_API_KEY` in Render
+4. Optionally set `EMAIL_FROM` (defaults to `hello@myproductauth.com`) and `EMAIL_FROM_NAME` (defaults to `ProductAuth`) — the from-address must be on your verified domain
+5. Without `BREVO_API_KEY` set, the backend still runs fine — verification/reset emails just get logged to the console instead of sent, so nothing breaks in the meantime
+
+**Separately:** for `hello@myproductauth.com` to actually receive mail people send *to* it (not just send *from* it), set up email forwarding at your domain registrar (Namecheap has a free email forwarding feature) pointing to your real inbox. Sending (via Brevo) and receiving (via forwarding) are two separate things to configure.
+
 ## Endpoints
 
 ### Public (no auth)
 - `GET /` — health check
-- `POST /signup` — create an account
+- `POST /signup` — create an account (sends a verification email)
 - `POST /login` — get your API key
+- `POST /verify-email` — confirm email from the link sent at signup
+- `POST /forgot-password` — request a password reset email
+- `POST /reset-password` — set a new password from a reset link
 - `POST /verify-token` — customer-facing verification, rate-limited
 
 ### Authenticated (`x-api-key` header)

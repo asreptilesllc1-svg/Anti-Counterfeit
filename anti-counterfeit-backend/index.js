@@ -102,6 +102,53 @@ const STRIPE_PRICE_IDS = {
   business: process.env.STRIPE_PRICE_BUSINESS,
 };
 
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || "hello@myproductauth.com";
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "ProductAuth";
+
+async function sendEmail({ to, subject, html }) {
+  if (!BREVO_API_KEY) {
+    console.warn(`⚠️  Email not sent (BREVO_API_KEY not configured) - would have sent "${subject}" to ${to}`);
+    return { sent: false };
+  }
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        sender: { email: EMAIL_FROM, name: EMAIL_FROM_NAME },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Brevo API returned ${res.status}: ${errBody}`);
+    }
+    return { sent: true };
+  } catch (err) {
+    console.error("❌ Failed to send email:", err.message);
+    return { sent: false, error: err.message };
+  }
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function emailWrapper(title, bodyHtml) {
+  return `
+  <div style="font-family: 'IBM Plex Sans', -apple-system, sans-serif; background: #14171c; padding: 40px 20px; color: #edeef0;">
+    <div style="max-width: 480px; margin: 0 auto; background: #1b1f26; border-radius: 16px; padding: 36px 32px; border: 1px solid rgba(237,238,240,0.1);">
+      <div style="font-family: Georgia, serif; font-weight: 600; font-size: 19px; color: #edeef0; margin-bottom: 24px;">ProductAuth</div>
+      <h1 style="font-family: Georgia, serif; font-size: 22px; color: #edeef0; margin: 0 0 16px;">${title}</h1>
+      ${bodyHtml}
+      <p style="color: #575d68; font-size: 12px; margin-top: 32px;">If you didn't request this, you can safely ignore this email.</p>
+    </div>
+  </div>`;
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
@@ -344,13 +391,28 @@ app.post("/signup", authLimiter, async (req, res) => {
 
     const apiKey = generateApiKey();
     const passwordHash = hashPassword(password);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const result = await pool.query(
-      `INSERT INTO accounts (email, password_hash, api_key, business_name, plan, plan_product_limit, subscription_status)
-       VALUES ($1, $2, $3, $4, 'free', $5, 'active') RETURNING id, email, business_name, plan, api_key`,
-      [email.toLowerCase(), passwordHash, apiKey, businessName || null, PLAN_LIMITS.free]
+      `INSERT INTO accounts (email, password_hash, api_key, business_name, plan, plan_product_limit, subscription_status, verification_token_hash, verification_expires)
+       VALUES ($1, $2, $3, $4, 'free', $5, 'active', $6, $7) RETURNING id, email, business_name, plan, api_key`,
+      [email.toLowerCase(), passwordHash, apiKey, businessName || null, PLAN_LIMITS.free, hashToken(verificationToken), verificationExpires]
     );
+
+    const verifyLink = `${VERIFY_BASE_URL}/verify-email.html?token=${verificationToken}`;
+    await sendEmail({
+      to: email,
+      subject: "Verify your ProductAuth email",
+      html: emailWrapper("Confirm your email", `
+        <p style="color:#979da8; font-size:15px; line-height:1.6;">Welcome to ProductAuth. Click below to verify your email and activate your account.</p>
+        <a href="${verifyLink}" style="display:inline-block; margin-top:12px; padding:12px 24px; background:#c9a227; color:#1a1508; text-decoration:none; border-radius:999px; font-weight:600; font-size:14px;">Verify email</a>
+        <p style="color:#575d68; font-size:12px; margin-top:20px;">This link expires in 24 hours.</p>
+      `),
+    });
+
     console.log(`✅ New account signed up: ${email}`);
-    res.status(201).json({ message: "Account created", account: result.rows[0] });
+    res.status(201).json({ message: "Account created - check your email to verify", account: result.rows[0] });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ error: "Signup failed" });
@@ -379,10 +441,96 @@ app.post("/login", authLimiter, async (req, res) => {
   }
 });
 
+app.post("/verify-email", authLimiter, async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: "Token required" });
+
+  try {
+    const tokenHash = hashToken(token);
+    const result = await pool.query(
+      "SELECT id, verification_expires FROM accounts WHERE verification_token_hash = $1",
+      [tokenHash]
+    );
+    if (result.rows.length === 0) return res.status(400).json({ error: "Invalid or already-used verification link" });
+
+    const account = result.rows[0];
+    if (new Date(account.verification_expires) < new Date()) {
+      return res.status(400).json({ error: "This verification link has expired - request a new one from your account" });
+    }
+
+    await pool.query(
+      "UPDATE accounts SET email_verified = true, verification_token_hash = NULL, verification_expires = NULL WHERE id = $1",
+      [account.id]
+    );
+    res.json({ message: "Email verified" });
+  } catch (err) {
+    console.error("Error verifying email:", err);
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+app.post("/forgot-password", authLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  if (!isValidEmail(email)) return res.status(400).json({ error: "Valid email required" });
+
+  try {
+    const result = await pool.query("SELECT id FROM accounts WHERE email = $1", [email.toLowerCase()]);
+    // Always return the same response whether or not the account exists,
+    // so this endpoint can't be used to check which emails have accounts.
+    if (result.rows.length > 0) {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await pool.query("UPDATE accounts SET reset_token_hash = $1, reset_expires = $2 WHERE id = $3", [
+        hashToken(resetToken), resetExpires, result.rows[0].id,
+      ]);
+      const resetLink = `${VERIFY_BASE_URL}/reset-password.html?token=${resetToken}`;
+      await sendEmail({
+        to: email,
+        subject: "Reset your ProductAuth password",
+        html: emailWrapper("Reset your password", `
+          <p style="color:#979da8; font-size:15px; line-height:1.6;">Click below to set a new password. This link expires in 1 hour.</p>
+          <a href="${resetLink}" style="display:inline-block; margin-top:12px; padding:12px 24px; background:#c9a227; color:#1a1508; text-decoration:none; border-radius:999px; font-weight:600; font-size:14px;">Reset password</a>
+        `),
+      });
+    }
+    res.json({ message: "If that email has an account, a reset link has been sent." });
+  } catch (err) {
+    console.error("Error requesting password reset:", err);
+    res.status(500).json({ error: "Failed to process request" });
+  }
+});
+
+app.post("/reset-password", authLimiter, async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  if (!token || !newPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: "Token and a password of at least 8 characters are required" });
+  }
+
+  try {
+    const tokenHash = hashToken(token);
+    const result = await pool.query("SELECT id, reset_expires FROM accounts WHERE reset_token_hash = $1", [tokenHash]);
+    if (result.rows.length === 0) return res.status(400).json({ error: "Invalid or already-used reset link" });
+
+    const account = result.rows[0];
+    if (new Date(account.reset_expires) < new Date()) {
+      return res.status(400).json({ error: "This reset link has expired - request a new one" });
+    }
+
+    await pool.query("UPDATE accounts SET password_hash = $1, reset_token_hash = NULL, reset_expires = NULL WHERE id = $2", [
+      hashPassword(newPassword), account.id,
+    ]);
+    res.json({ message: "Password updated - you can log in now" });
+  } catch (err) {
+    console.error("Error resetting password:", err);
+    res.status(500).json({ error: "Failed to reset password" });
+  }
+});
+
 app.get("/account/me", requireAccount, accountLimiter, async (req, res) => {
   const a = req.account;
   res.json({
     email: a.email,
+    emailVerified: a.email_verified,
     businessName: a.business_name,
     brandLogoUrl: a.brand_logo_url,
     brandColor: a.brand_color,
@@ -886,4 +1034,7 @@ app.listen(PORT, () => {
   if (!stripe) console.warn(`⚠️  STRIPE_SECRET_KEY not set - billing endpoints disabled`);
   else if (!STRIPE_WEBHOOK_SECRET) console.warn(`⚠️  STRIPE_WEBHOOK_SECRET not set - webhook verification will fail`);
   else console.log(`✅ Stripe billing configured`);
+
+  if (!BREVO_API_KEY) console.warn(`⚠️  BREVO_API_KEY not set - verification/reset emails will be logged, not sent`);
+  else console.log(`✅ Email service configured (sending as ${EMAIL_FROM_NAME} <${EMAIL_FROM}>)`);
 });

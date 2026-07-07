@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Verify your email — ProductAuth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#14171c; --panel:#1b1f26; --hairline:rgba(237,238,240,0.1); --text:#edeef0; --text-muted:#979da8; --brass:#c9a227; --brass-bright:#e0bc4a; --brass-ink:#1a1508; --danger:#e0665c; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background: radial-gradient(ellipse 1000px 500px at 50% -10%, rgba(201,162,39,0.08), transparent), var(--ink); color:var(--text); font-family:"IBM Plex Sans",sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .panel { background:var(--panel); border:1px solid var(--hairline); border-radius:18px; padding:44px 40px; max-width:400px; width:100%; text-align:center; }
+  h1 { font-family:"Fraunces",serif; font-weight:600; font-size:24px; margin-bottom:12px; }
+  p { color:var(--text-muted); font-size:15px; margin-bottom:24px; }
+  .icon { font-size:40px; margin-bottom:16px; }
+  a.btn { display:inline-block; padding:12px 26px; border-radius:999px; background:var(--brass); color:var(--brass-ink); text-decoration:none; font-weight:600; font-size:14px; }
+  .error { color:var(--danger); }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="icon" id="icon">⏳</div>
+  <h1 id="title">Verifying…</h1>
+  <p id="message">Hang tight a moment.</p>
+  <a href="login.html" class="btn" id="cta" style="display:none;">Go to login</a>
+</div>
+<script>
+  const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+  const token = new URLSearchParams(window.location.search).get('token');
+  const icon = document.getElementById('icon');
+  const title = document.getElementById('title');
+  const message = document.getElementById('message');
+  const cta = document.getElementById('cta');
+
+  if (!token) {
+    icon.textContent = '⚠️';
+    title.textContent = 'Missing link';
+    title.className = 'error';
+    message.textContent = 'This verification link looks incomplete. Check the link in your email and try again.';
+  } else {
+    fetch(`${API_URL}/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok) {
+        icon.textContent = '✓';
+        title.textContent = 'Email verified';
+        message.textContent = 'Your account is confirmed. You can log in now.';
+      } else {
+        icon.textContent = '⚠️';
+        title.textContent = 'Verification failed';
+        title.className = 'error';
+        message.textContent = data.error || 'This link may have expired.';
+      }
+      cta.style.display = 'inline-block';
+    })
+    .catch(() => {
+      icon.textContent = '⚠️';
+      title.textContent = 'Something went wrong';
+      title.className = 'error';
+      message.textContent = 'Please try again in a moment.';
+      cta.style.display = 'inline-block';
+    });
+  }
+</script>
+</body>
+</html>

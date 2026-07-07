@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   stripe_subscription_id VARCHAR(255),
   subscription_status VARCHAR(30) NOT NULL DEFAULT 'trialing',
   is_active BOOLEAN NOT NULL DEFAULT true,
+  email_verified BOOLEAN NOT NULL DEFAULT false,
+  verification_token_hash VARCHAR(64),
+  verification_expires TIMESTAMP,
+  reset_token_hash VARCHAR(64),
+  reset_expires TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
