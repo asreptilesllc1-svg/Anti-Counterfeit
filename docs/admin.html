@@ -658,6 +658,7 @@
         <table>
           <thead>
             <tr>
+              <th>QR</th>
               <th>Product ID</th>
               <th>Name</th>
               <th>Batch</th>
@@ -669,6 +670,12 @@
           <tbody>
             ${products.map(p => `
               <tr>
+                <td>
+                  ${p.qr_data_url
+                    ? `<img src="${p.qr_data_url}" alt="QR for ${p.product_id}" style="width:44px; height:44px; border-radius:6px; cursor:pointer; border:1px solid #e5e7eb;" onclick="showQrModal('${p.product_id}', '${p.qr_data_url}', '${p.signed_token || ''}')" />`
+                    : '<span style="color:#9ca3af; font-size:12px;">—</span>'
+                  }
+                </td>
                 <td><strong>${p.product_id}</strong></td>
                 <td>${p.name || 'N/A'}</td>
                 <td>${p.batch || 'N/A'}</td>
@@ -685,6 +692,26 @@
           </tbody>
         </table>
       `;
+    }
+
+    function showQrModal(productId, qrDataUrl, signedToken) {
+      const verifyUrl = signedToken ? `https://verify.myproductauth.com/verify.html?p=${encodeURIComponent(signedToken)}` : null;
+      const overlay = document.createElement('div');
+      overlay.className = 'qr-modal-overlay';
+      overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000;';
+      overlay.innerHTML = `
+        <div style="background:#fff; border-radius:12px; padding:28px; text-align:center; max-width:340px;">
+          <h3 style="margin:0 0 16px; font-size:16px;">${productId}</h3>
+          <img src="${qrDataUrl}" alt="QR for ${productId}" style="width:240px; height:240px; border-radius:8px;" />
+          <div style="display:flex; gap:10px; margin-top:18px;">
+            <a href="${qrDataUrl}" download="QR-${productId}.png" style="flex:1; padding:10px; border-radius:8px; background:#4f46e5; color:#fff; text-decoration:none; font-weight:600; font-size:14px;">Download</a>
+            <button onclick="document.querySelector('.qr-modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid #d1d5db; background:#fff; cursor:pointer; font-weight:600; font-size:14px;">Close</button>
+          </div>
+          ${verifyUrl ? `<a href="${verifyUrl}" target="_blank" rel="noopener" style="display:block; margin-top:10px; font-size:13px; color:#4f46e5; text-decoration:none;">Open verify page &rarr; (see exactly what a scan shows)</a>` : ''}
+        </div>
+      `;
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
     }
 
     function searchProducts() {
