@@ -84,6 +84,7 @@
   <div id="keyBox" class="key-box" style="display:none;"></div>
 
   <form id="signupForm">
+    <input type="text" name="website" id="website" autocomplete="off" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" aria-hidden="true" />
     <label for="businessName">Business name</label>
     <input type="text" id="businessName" placeholder="Your brand name" />
 
@@ -123,6 +124,7 @@
           businessName: document.getElementById('businessName').value.trim(),
           email: document.getElementById('email').value.trim(),
           password: document.getElementById('password').value,
+          website: document.getElementById('website').value,
         }),
       });
       const data = await res.json();

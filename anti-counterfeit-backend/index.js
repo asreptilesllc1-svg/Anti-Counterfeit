@@ -340,7 +340,8 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });     // signup/login attempts
+const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });     // login/verify attempts
+const emailSendLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 }); // signup/forgot-password - each one sends a real email, so cap much tighter
 const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // public verification
 const accountLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });  // authenticated account ops
 const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
@@ -402,10 +403,30 @@ app.get("/", async (req, res) => {
 // ================================
 // ACCOUNTS — signup, login, self-service
 // ================================
-app.post("/signup", authLimiter, async (req, res) => {
-  const { email, password, businessName } = req.body || {};
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  "mailinator.com", "guerrillamail.com", "10minutemail.com", "tempmail.com",
+  "throwawaymail.com", "yopmail.com", "trashmail.com", "getnada.com",
+  "temp-mail.org", "fakeinbox.com", "sharklasers.com", "dispostable.com",
+]);
+
+app.post("/signup", emailSendLimiter, async (req, res) => {
+  const { email, password, businessName, website } = req.body || {};
+
+  // Honeypot: real users never see or fill this field (hidden via CSS on the form).
+  // A bot filling every input finds it and fills it in - so any value here means bot.
+  // Return a fake success rather than an error, so the bot doesn't learn to adapt.
+  if (website) {
+    console.warn(`🤖 Honeypot triggered on signup (value: "${website}") - silently ignoring`);
+    return res.status(201).json({ message: "Account created", account: { email } });
+  }
+
   if (!isValidEmail(email)) return res.status(400).json({ error: "Valid email required" });
   if (!password || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+
+  const emailDomain = email.toLowerCase().split("@")[1];
+  if (DISPOSABLE_EMAIL_DOMAINS.has(emailDomain)) {
+    return res.status(400).json({ error: "Please use a permanent email address, not a disposable/temporary one" });
+  }
 
   try {
     const existing = await pool.query("SELECT id FROM accounts WHERE email = $1", [email.toLowerCase()]);
@@ -491,8 +512,14 @@ app.post("/verify-email", authLimiter, async (req, res) => {
   }
 });
 
-app.post("/forgot-password", authLimiter, async (req, res) => {
-  const { email } = req.body || {};
+app.post("/forgot-password", emailSendLimiter, async (req, res) => {
+  const { email, website } = req.body || {};
+
+  if (website) {
+    console.warn(`🤖 Honeypot triggered on forgot-password (value: "${website}") - silently ignoring`);
+    return res.json({ message: "If that email has an account, a reset link has been sent." });
+  }
+
   if (!isValidEmail(email)) return res.status(400).json({ error: "Valid email required" });
 
   try {

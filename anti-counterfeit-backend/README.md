@@ -56,6 +56,12 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 
 **Separately:** for `hello@myproductauth.com` to actually receive mail people send *to* it (not just send *from* it), set up email forwarding at your domain registrar (Namecheap has a free email forwarding feature) pointing to your real inbox. Sending (via Brevo) and receiving (via forwarding) are two separate things to configure.
 
+## Bot / abuse protection
+- **Honeypot field**: signup and forgot-password forms include a hidden `website` input, invisible to real users but auto-filled by unsophisticated bots. Any value there triggers a silent fake-success response (no account created, no email sent) rather than an error, so bots don't learn to adapt.
+- **Tighter rate limiting on email-sending endpoints**: `/signup` and `/forgot-password` are capped at 5 requests/hour per IP (separate, stricter limit than general auth endpoints), since each request sends a real email through your Brevo quota.
+- **Disposable email blocking**: signups from known temporary-email domains (Mailinator, Guerrilla Mail, etc.) are rejected with a clear message.
+- **Not yet added, worth considering if bot traffic becomes a real problem**: Cloudflare Turnstile (free, invisible CAPTCHA) on signup/forgot-password for stronger protection against more sophisticated bots that fill honeypot fields correctly.
+
 ## Endpoints
 
 ### Public (no auth)
