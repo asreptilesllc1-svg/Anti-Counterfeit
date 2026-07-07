@@ -192,12 +192,18 @@ function isValidEmail(email) {
 async function calculateRiskLevel(accountId, productId) {
   try {
     const result = await pool.query(
-      "SELECT COUNT(*) as count FROM verifications WHERE account_id = $1 AND product_id = $2 AND verified_at > NOW() - INTERVAL '24 hours'",
+      `SELECT COUNT(*) as count,
+              COUNT(DISTINCT location_city) FILTER (WHERE location_city IS NOT NULL) as distinct_cities
+       FROM verifications
+       WHERE account_id = $1 AND product_id = $2 AND verified_at > NOW() - INTERVAL '24 hours'`,
       [accountId, productId]
     );
     const count = parseInt(result.rows[0].count);
-    if (count > 10) return "high";
-    if (count > 3) return "medium";
+    const cities = parseInt(result.rows[0].distinct_cities);
+    // High: heavy scan volume OR the same code appearing in 3+ different cities within a day
+    if (count > 10 || cities >= 3) return "high";
+    // Medium: elevated volume OR the same code in 2 different cities
+    if (count > 3 || cities === 2) return "medium";
     return "low";
   } catch (err) {
     console.error("Error calculating risk:", err);
@@ -338,6 +344,21 @@ const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });     // signup/l
 const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // public verification
 const accountLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });  // authenticated account ops
 const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
+
+// Plan gating - some features are only included on higher tiers,
+// exactly as listed on the pricing page.
+function requirePlan(...allowedPlans) {
+  return (req, res, next) => {
+    if (!allowedPlans.includes(req.account.plan)) {
+      return res.status(403).json({
+        error: `This feature requires the ${allowedPlans[0].charAt(0).toUpperCase() + allowedPlans[0].slice(1)} plan or higher. You're currently on ${req.account.plan}.`,
+        currentPlan: req.account.plan,
+        requiredPlans: allowedPlans,
+      });
+    }
+    next();
+  };
+}
 
 async function enforceProductQuota(req, res, next) {
   try {
@@ -541,7 +562,7 @@ app.get("/account/me", requireAccount, accountLimiter, async (req, res) => {
   });
 });
 
-app.post("/account/branding", requireAccount, accountLimiter, async (req, res) => {
+app.post("/account/branding", requireAccount, requirePlan("starter", "growth", "business"), accountLimiter, async (req, res) => {
   const { businessName, brandLogoUrl, brandColor } = req.body || {};
   try {
     await pool.query(
@@ -662,7 +683,7 @@ app.post("/sign-qr", requireAccount, accountLimiter, enforceProductQuota, async 
 // ================================
 // SIGN + QR (with logo)
 // ================================
-app.post("/sign-qr-with-logo", requireAccount, accountLimiter, enforceProductQuota, async (req, res) => {
+app.post("/sign-qr-with-logo", requireAccount, requirePlan("growth", "business"), accountLimiter, enforceProductQuota, async (req, res) => {
   const { logo, ...payload } = req.body;
   const productData = Object.keys(payload).length > 0 ? payload : { id: "DEFAULT-001", name: "Default Product", batch: "DEFAULT", timestamp: Date.now() };
 
@@ -840,7 +861,7 @@ app.post("/products/:id/activate", requireAccount, accountLimiter, async (req, r
 // ================================
 // BLOCKCHAIN INSCRIPTION (account-scoped)
 // ================================
-app.get("/products/:id/manifest", requireAccount, accountLimiter, async (req, res) => {
+app.get("/products/:id/manifest", requireAccount, requirePlan("business"), accountLimiter, async (req, res) => {
   try {
     const result = await pool.query("SELECT product_id, name, batch, signed_token, notes FROM products WHERE account_id = $1 AND product_id = $2", [req.account.id, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
@@ -867,7 +888,7 @@ app.get("/products/:id/manifest", requireAccount, accountLimiter, async (req, re
   }
 });
 
-app.post("/products/:id/inscription", requireAccount, accountLimiter, async (req, res) => {
+app.post("/products/:id/inscription", requireAccount, requirePlan("business"), accountLimiter, async (req, res) => {
   try {
     const { inscriptionId } = req.body || {};
     if (!inscriptionId || typeof inscriptionId !== "string" || inscriptionId.length > 200) {

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Privacy Policy — ProductAuth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#14171c; --panel:#1b1f26; --hairline:rgba(237,238,240,0.1); --text:#edeef0; --text-muted:#979da8; --brass-bright:#e0bc4a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--ink); color:var(--text); font-family:"IBM Plex Sans",sans-serif; line-height:1.7; padding:48px 24px; }
+  .wrap { max-width:720px; margin:0 auto; }
+  a { color:var(--brass-bright); }
+  h1 { font-family:"Fraunces",serif; font-weight:600; font-size:32px; margin-bottom:8px; }
+  .updated { color:var(--text-muted); font-size:13px; margin-bottom:36px; }
+  h2 { font-family:"Fraunces",serif; font-weight:600; font-size:20px; margin:32px 0 10px; }
+  p, li { color:var(--text-muted); font-size:15px; margin-bottom:12px; }
+  ul { padding-left:22px; }
+  .back { display:inline-block; margin-bottom:28px; color:var(--text-muted); text-decoration:none; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="index.html" class="back">&larr; ProductAuth</a>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: July 6, 2026</p>
+
+  <p>This policy explains what ProductAuth (operated by Builder Dogs) collects, why, and what happens to it. It covers both our business customers (brands with accounts) and consumers who scan a product's QR code.</p>
+
+  <h2>1. What we collect from account holders</h2>
+  <ul>
+    <li><strong>Account information:</strong> email address, password (stored only as a salted cryptographic hash — we never see or store your actual password), and business name.</li>
+    <li><strong>Product data:</strong> the product details, images, and branding you upload to generate QR codes.</li>
+    <li><strong>Billing:</strong> payments are processed by Stripe. We store your Stripe customer and subscription identifiers, but never your card number — that goes directly to Stripe and stays there.</li>
+  </ul>
+
+  <h2>2. What we collect when someone scans a QR code</h2>
+  <p>When a consumer scans a product's code, the verification request records:</p>
+  <ul>
+    <li>The product being verified and the scan's timestamp;</li>
+    <li>The scanning device's IP address and browser user-agent string;</li>
+    <li>An approximate location (city and country) derived from the IP address.</li>
+  </ul>
+  <p>This exists for one purpose: counterfeit detection. The same code appearing in an unusual number of scans or in geographically scattered locations is a signal of cloned tags, and this data powers that analysis on behalf of the brand that made the product. Scan data is not used for advertising and is not sold to anyone.</p>
+
+  <h2>3. Who processes data on our behalf</h2>
+  <p>We use a small set of service providers, each receiving only what's needed for their role:</p>
+  <ul>
+    <li><strong>Render</strong> — hosts our backend servers;</li>
+    <li><strong>Supabase</strong> — hosts our database;</li>
+    <li><strong>Stripe</strong> — processes payments;</li>
+    <li><strong>Brevo</strong> — sends transactional email (verification links, password resets);</li>
+    <li><strong>ipwho.is</strong> — converts scan IP addresses to approximate city/country;</li>
+    <li><strong>GitHub Pages</strong> — hosts this website.</li>
+  </ul>
+
+  <h2>4. Cookies and tracking</h2>
+  <p>We do not use advertising or analytics cookies. Logged-in sessions use your browser's sessionStorage (cleared when the tab closes) to hold your API key. That's it.</p>
+
+  <h2>5. Blockchain inscriptions</h2>
+  <p>If a brand chooses to inscribe a product record on the Dogecoin blockchain, that inscribed data (product identifiers and a cryptographic hash — never personal information) becomes permanently public and cannot be deleted by us or anyone. Inscription is always opt-in per product.</p>
+
+  <h2>6. Retention</h2>
+  <p>Account and product data is kept while your account is active. Verification/scan logs are retained to preserve each product's authenticity history — this history is the core of the service, since a product's scan record is what makes clone detection possible. If you delete your account, your account data and products are removed from our active database.</p>
+
+  <h2>7. Your rights</h2>
+  <p>Depending on where you live (including under GDPR and the California Consumer Privacy Act), you may have rights to access, correct, export, or delete your personal information. Account holders can export all of their data anytime from within the Service. For any privacy request — including consumers who scanned a code and want their scan data addressed — contact us at the email below and we will respond within the timeframe required by applicable law.</p>
+
+  <h2>8. Security</h2>
+  <p>Passwords are hashed with scrypt and per-user salts. API access is authenticated and rate-limited. Product tokens are signed with RS256 asymmetric cryptography. No system is perfectly secure, but the architecture is designed so that no single leaked credential exposes other customers' data.</p>
+
+  <h2>9. Children</h2>
+  <p>The Service is for business use and not directed at children under 13. We do not knowingly collect personal information from children.</p>
+
+  <h2>10. Changes</h2>
+  <p>We'll post any changes to this policy on this page with an updated date. Material changes affecting account holders will also be communicated by email.</p>
+
+  <h2>11. Contact</h2>
+  <p>Privacy questions or requests: <a href="mailto:hello@myproductauth.com">hello@myproductauth.com</a></p>
+</div>
+</body>
+</html>
