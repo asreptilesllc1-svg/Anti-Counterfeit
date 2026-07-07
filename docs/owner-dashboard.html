@@ -107,7 +107,7 @@
     <div class="section">
       <h2>Full backup</h2>
       <p style="color:var(--text-muted); font-size:14px;">Full cross-account product export, protected separately by your EXPORT_KEY.</p>
-      <a class="export-link" href="#" id="exportLink">Download full export (JSON)</a>
+      <button class="btn-sm" onclick="downloadFullExport()" style="margin-top:8px;">Download full export (JSON)</button>
     </div>
   </div>
 </div>
@@ -127,16 +127,14 @@
     try {
       const res = await fetch(`${API_URL}/admin/overview`, { headers: { 'x-admin-key': adminKey } });
       if (!res.ok) {
+        let serverMessage = '';
+        try {
+          const body = await res.json();
+          serverMessage = body.error || '';
+        } catch (e) { /* body wasn't JSON */ }
+
         const errText = document.getElementById('gateErr');
-        if (res.status === 403) {
-          errText.textContent = 'Invalid admin key.';
-        } else if (res.status === 404) {
-          errText.textContent = 'This endpoint isn\'t live yet on the backend - has the latest code been deployed to Render?';
-        } else if (res.status === 500) {
-          errText.textContent = 'Server error - ADMIN_KEY may not be configured on the backend yet.';
-        } else {
-          errText.textContent = `Unexpected error (status ${res.status}).`;
-        }
+        errText.textContent = `Error (status ${res.status})${serverMessage ? ': ' + serverMessage : ''}`;
         errText.style.display = 'block';
         sessionStorage.removeItem('ownerAdminKey');
         return;
@@ -184,7 +182,6 @@
       `).join('') || '<tr><td colspan="5" style="color:var(--text-faint);">No signups yet.</td></tr>'}</tbody>
     `;
 
-    document.getElementById('exportLink').href = `${API_URL}/admin/export/all?key=PASTE_YOUR_EXPORT_KEY`;
   }
 
   async function loadAccounts() {
@@ -218,6 +215,36 @@
     if (!confirm(`${action === 'deactivate' ? 'Deactivate' : 'Activate'} this account?`)) return;
     await fetch(`${API_URL}/admin/accounts/${id}/${action}`, { method: 'POST', headers: { 'x-admin-key': adminKey } });
     loadAccounts();
+  }
+
+  async function downloadFullExport() {
+    let exportKey = sessionStorage.getItem('exportKey');
+    if (!exportKey) {
+      exportKey = prompt('Enter your EXPORT_KEY (separate from your admin key):');
+      if (!exportKey) return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/admin/export/all?key=${encodeURIComponent(exportKey)}`, {
+        headers: { 'x-admin-key': adminKey },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Export failed (${res.status}): ${body.error || 'unknown error'}`);
+        sessionStorage.removeItem('exportKey');
+        return;
+      }
+      sessionStorage.setItem('exportKey', exportKey);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `productauth-full-export-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Could not reach the backend to export.');
+    }
   }
 
   function escapeHtml(str) {
