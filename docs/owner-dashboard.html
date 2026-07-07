@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Owner Dashboard — ProductAuth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#14171c; --panel:#1b1f26; --panel-2:#21252d; --hairline:rgba(237,238,240,0.1); --hairline-strong:rgba(237,238,240,0.2);
+    --text:#edeef0; --text-muted:#979da8; --text-faint:#575d68;
+    --brass:#c9a227; --brass-bright:#e0bc4a; --brass-ink:#1a1508;
+    --teal:#3fa7a0; --teal-bright:#58c7bf; --danger:#e0665c;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--ink); color:var(--text); font-family:"IBM Plex Sans",sans-serif; min-height:100vh; padding:32px 24px; }
+  .wrap { max-width:1100px; margin:0 auto; }
+  a { color:var(--brass-bright); }
+
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; flex-wrap:wrap; gap:14px; }
+  h1 { font-family:"Fraunces",serif; font-weight:600; font-size:26px; }
+  .lock-note { font-size:13px; color:var(--text-faint); font-family:"IBM Plex Mono",monospace; }
+
+  .gate { max-width:380px; margin:120px auto; background:var(--panel); border:1px solid var(--hairline); border-radius:16px; padding:36px 32px; text-align:center; }
+  .gate input { width:100%; padding:12px 14px; margin:16px 0; border-radius:10px; border:1px solid var(--hairline-strong); background:rgba(255,255,255,0.03); color:var(--text); font-size:15px; }
+  .gate button { width:100%; padding:12px; border-radius:999px; border:none; background:var(--brass); color:var(--brass-ink); font-weight:600; cursor:pointer; }
+  .gate .err { color:var(--danger); font-size:13px; margin-top:10px; display:none; }
+
+  #dashboard { display:none; }
+
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:32px; }
+  @media (max-width:800px) { .stat-grid { grid-template-columns:repeat(2,1fr); } }
+  .stat-card { background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:22px; }
+  .stat-num { font-family:"Fraunces",serif; font-size:32px; font-weight:600; color:var(--brass-bright); }
+  .stat-label { font-size:13px; color:var(--text-muted); margin-top:4px; }
+
+  .section { background:var(--panel); border:1px solid var(--hairline); border-radius:14px; padding:24px; margin-bottom:24px; }
+  .section h2 { font-family:"Fraunces",serif; font-size:18px; font-weight:600; margin-bottom:16px; }
+
+  .plan-bars { display:flex; flex-direction:column; gap:10px; }
+  .plan-bar-row { display:flex; align-items:center; gap:12px; font-size:14px; }
+  .plan-bar-label { width:80px; text-transform:capitalize; color:var(--text-muted); }
+  .plan-bar-track { flex:1; height:8px; background:var(--panel-2); border-radius:999px; overflow:hidden; }
+  .plan-bar-fill { height:100%; background:var(--brass); }
+  .plan-bar-count { width:36px; text-align:right; font-family:"IBM Plex Mono",monospace; font-size:13px; }
+
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; padding:10px 12px; color:var(--text-muted); font-weight:500; font-size:12.5px; text-transform:uppercase; letter-spacing:0.03em; border-bottom:1px solid var(--hairline-strong); }
+  td { padding:10px 12px; border-bottom:1px solid var(--hairline); }
+  .badge { padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; }
+  .badge.active { background:rgba(63,167,160,0.15); color:var(--teal-bright); }
+  .badge.inactive { background:rgba(224,102,92,0.15); color:var(--danger); }
+  .badge.verified { background:rgba(201,162,39,0.15); color:var(--brass-bright); }
+  .badge.unverified { background:rgba(255,255,255,0.06); color:var(--text-faint); }
+
+  .btn-sm { padding:6px 12px; border-radius:8px; border:1px solid var(--hairline-strong); background:transparent; color:var(--text); cursor:pointer; font-size:12.5px; }
+  .btn-sm:hover { border-color:var(--text-muted); }
+  .btn-sm.danger { color:var(--danger); border-color:rgba(224,102,92,0.4); }
+  .btn-sm.success { color:var(--teal-bright); border-color:rgba(63,167,160,0.4); }
+
+  .search-row { display:flex; gap:10px; margin-bottom:16px; }
+  .search-row input { flex:1; padding:10px 14px; border-radius:10px; border:1px solid var(--hairline-strong); background:rgba(255,255,255,0.03); color:var(--text); font-size:14px; }
+
+  .export-link { display:inline-block; margin-top:8px; font-size:13px; }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <h1 style="margin-bottom:8px;">Owner Access</h1>
+  <p style="color:var(--text-muted); font-size:14px;">This is not your customer dashboard — enter your platform admin key.</p>
+  <input type="password" id="adminKeyInput" placeholder="Admin key" />
+  <button onclick="unlock()">Unlock</button>
+  <p class="err" id="gateErr">Invalid admin key.</p>
+</div>
+
+<div id="dashboard">
+  <div class="wrap">
+    <header>
+      <h1>Owner Dashboard</h1>
+      <span class="lock-note">🔒 Platform-level — not visible to customers</span>
+    </header>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="section">
+      <h2>Plan breakdown</h2>
+      <div class="plan-bars" id="planBars"></div>
+    </div>
+
+    <div class="section">
+      <h2>Recent signups</h2>
+      <table id="recentTable"></table>
+    </div>
+
+    <div class="section">
+      <h2>All accounts</h2>
+      <div class="search-row">
+        <input type="text" id="accountSearch" placeholder="Search by email or business name…" onkeyup="if(event.key==='Enter') loadAccounts()" />
+        <button class="btn-sm" onclick="loadAccounts()">Search</button>
+      </div>
+      <table id="accountsTable"></table>
+    </div>
+
+    <div class="section">
+      <h2>Full backup</h2>
+      <p style="color:var(--text-muted); font-size:14px;">Full cross-account product export, protected separately by your EXPORT_KEY.</p>
+      <a class="export-link" href="#" id="exportLink">Download full export (JSON)</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_URL = 'https://anti-counterfeit-backend-new.onrender.com';
+  let adminKey = sessionStorage.getItem('ownerAdminKey');
+
+  function unlock() {
+    const key = document.getElementById('adminKeyInput').value.trim();
+    if (!key) return;
+    adminKey = key;
+    testKeyAndLoad();
+  }
+
+  async function testKeyAndLoad() {
+    try {
+      const res = await fetch(`${API_URL}/admin/overview`, { headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) throw new Error('bad key');
+      sessionStorage.setItem('ownerAdminKey', adminKey);
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      const data = await res.json();
+      renderOverview(data);
+      loadAccounts();
+    } catch (e) {
+      document.getElementById('gateErr').style.display = 'block';
+      sessionStorage.removeItem('ownerAdminKey');
+    }
+  }
+
+  function renderOverview(data) {
+    document.getElementById('statGrid').innerHTML = `
+      <div class="stat-card"><div class="stat-num">$${data.estimatedMRR.toLocaleString()}</div><div class="stat-label">Estimated MRR</div></div>
+      <div class="stat-card"><div class="stat-num">${data.total_accounts}</div><div class="stat-label">Total accounts</div></div>
+      <div class="stat-card"><div class="stat-num">${data.signups_this_week}</div><div class="stat-label">Signups this week</div></div>
+      <div class="stat-card"><div class="stat-num">${data.total_verifications}</div><div class="stat-label">Total verifications</div></div>
+    `;
+
+    const maxCount = Math.max(1, ...Object.values(data.planBreakdown).map(p => p.active));
+    document.getElementById('planBars').innerHTML = Object.entries(data.planBreakdown).map(([plan, counts]) => `
+      <div class="plan-bar-row">
+        <div class="plan-bar-label">${plan}</div>
+        <div class="plan-bar-track"><div class="plan-bar-fill" style="width:${(counts.active / maxCount) * 100}%"></div></div>
+        <div class="plan-bar-count">${counts.active}</div>
+      </div>
+    `).join('') || '<p style="color:var(--text-faint); font-size:14px;">No accounts yet.</p>';
+
+    document.getElementById('recentTable').innerHTML = `
+      <thead><tr><th>Email</th><th>Business</th><th>Plan</th><th>Status</th><th>Signed up</th></tr></thead>
+      <tbody>${data.recentSignups.map(a => `
+        <tr>
+          <td>${escapeHtml(a.email)}</td>
+          <td>${escapeHtml(a.business_name || '—')}</td>
+          <td style="text-transform:capitalize;">${a.plan}</td>
+          <td><span class="badge ${a.email_verified ? 'verified' : 'unverified'}">${a.email_verified ? 'Verified' : 'Unverified'}</span></td>
+          <td>${new Date(a.created_at).toLocaleDateString()}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" style="color:var(--text-faint);">No signups yet.</td></tr>'}</tbody>
+    `;
+
+    document.getElementById('exportLink').href = `${API_URL}/admin/export/all?key=PASTE_YOUR_EXPORT_KEY`;
+  }
+
+  async function loadAccounts() {
+    const search = document.getElementById('accountSearch').value.trim();
+    const res = await fetch(`${API_URL}/admin/accounts${search ? '?search=' + encodeURIComponent(search) : ''}`, {
+      headers: { 'x-admin-key': adminKey },
+    });
+    const data = await res.json();
+    document.getElementById('accountsTable').innerHTML = `
+      <thead><tr><th>Email</th><th>Business</th><th>Plan</th><th>Limit</th><th>Status</th><th>Active</th><th></th></tr></thead>
+      <tbody>${data.accounts.map(a => `
+        <tr>
+          <td>${escapeHtml(a.email)}</td>
+          <td>${escapeHtml(a.business_name || '—')}</td>
+          <td style="text-transform:capitalize;">${a.plan}</td>
+          <td>${a.plan_product_limit}</td>
+          <td><span class="badge ${['active','trialing'].includes(a.subscription_status) ? 'active' : 'inactive'}">${a.subscription_status}</span></td>
+          <td><span class="badge ${a.is_active ? 'active' : 'inactive'}">${a.is_active ? 'Active' : 'Deactivated'}</span></td>
+          <td>
+            ${a.is_active
+              ? `<button class="btn-sm danger" onclick="toggleAccount(${a.id}, 'deactivate')">Deactivate</button>`
+              : `<button class="btn-sm success" onclick="toggleAccount(${a.id}, 'activate')">Activate</button>`
+            }
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="7" style="color:var(--text-faint);">No accounts found.</td></tr>'}</tbody>
+    `;
+  }
+
+  async function toggleAccount(id, action) {
+    if (!confirm(`${action === 'deactivate' ? 'Deactivate' : 'Activate'} this account?`)) return;
+    await fetch(`${API_URL}/admin/accounts/${id}/${action}`, { method: 'POST', headers: { 'x-admin-key': adminKey } });
+    loadAccounts();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  if (adminKey) testKeyAndLoad();
+</script>
+</body>
+</html>

@@ -96,6 +96,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY;   // platform-level superadmin key (you
 const LOGO_PATH = "./logo.png";
 
 const PLAN_LIMITS = { free: 5, starter: 50, growth: 250, business: 1500 };
+const PLAN_PRICES = { free: 0, starter: 19, growth: 49, business: 149 };
 const STRIPE_PRICE_IDS = {
   starter: process.env.STRIPE_PRICE_STARTER,
   growth: process.env.STRIPE_PRICE_GROWTH,
@@ -1007,6 +1008,101 @@ app.get("/export/verifications", requireAccount, exportLimiter, async (req, res)
 });
 
 // Platform-level full backup across ALL accounts (you, not customers)
+// Platform overview: accounts, plan breakdown, estimated MRR, verification volume
+app.get("/admin/overview", requireSuperAdmin, accountLimiter, async (req, res) => {
+  try {
+    const accountStats = await pool.query(`
+      SELECT plan, subscription_status, COUNT(*) as count
+      FROM accounts WHERE email != 'legacy@internal'
+      GROUP BY plan, subscription_status
+    `);
+
+    const totals = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM accounts WHERE email != 'legacy@internal') as total_accounts,
+        (SELECT COUNT(*) FROM accounts WHERE email != 'legacy@internal' AND created_at > NOW() - INTERVAL '7 days') as signups_this_week,
+        (SELECT COUNT(*) FROM accounts WHERE email != 'legacy@internal' AND created_at > NOW() - INTERVAL '30 days') as signups_this_month,
+        (SELECT COUNT(*) FROM products) as total_products,
+        (SELECT COUNT(*) FROM verifications) as total_verifications,
+        (SELECT COUNT(*) FROM verifications WHERE verified_at > NOW() - INTERVAL '24 hours') as verifications_today
+    `);
+
+    // Estimated MRR: active/trialing paid accounts × their plan's price.
+    // This is an estimate from account records, not a live Stripe query -
+    // exact once Stripe billing is fully wired up, since Stripe is the source of truth for actual charges.
+    let estimatedMRR = 0;
+    const planBreakdown = {};
+    for (const row of accountStats.rows) {
+      const key = row.plan;
+      if (!planBreakdown[key]) planBreakdown[key] = { active: 0, other: 0 };
+      if (["active", "trialing"].includes(row.subscription_status)) {
+        planBreakdown[key].active += parseInt(row.count);
+        if (row.plan !== "free") estimatedMRR += parseInt(row.count) * (PLAN_PRICES[row.plan] || 0);
+      } else {
+        planBreakdown[key].other += parseInt(row.count);
+      }
+    }
+
+    const recentSignups = await pool.query(`
+      SELECT email, business_name, plan, subscription_status, email_verified, created_at
+      FROM accounts WHERE email != 'legacy@internal'
+      ORDER BY created_at DESC LIMIT 10
+    `);
+
+    res.json({
+      ...totals.rows[0],
+      estimatedMRR,
+      planBreakdown,
+      recentSignups: recentSignups.rows,
+    });
+  } catch (err) {
+    console.error("Error fetching admin overview:", err);
+    res.status(500).json({ error: "Failed to fetch overview" });
+  }
+});
+
+// Full account list, searchable - for managing customers directly
+app.get("/admin/accounts", requireSuperAdmin, accountLimiter, async (req, res) => {
+  try {
+    const { search, limit = 50, offset = 0 } = req.query;
+    let query = "SELECT id, email, business_name, plan, plan_product_limit, subscription_status, is_active, email_verified, created_at FROM accounts WHERE email != 'legacy@internal'";
+    const params = [];
+    let n = 1;
+    if (search) {
+      query += ` AND (email ILIKE $${n} OR business_name ILIKE $${n})`;
+      params.push(`%${search}%`);
+      n++;
+    }
+    query += ` ORDER BY created_at DESC LIMIT $${n} OFFSET $${n + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+    const result = await pool.query(query, params);
+    res.json({ accounts: result.rows });
+  } catch (err) {
+    console.error("Error fetching accounts:", err);
+    res.status(500).json({ error: "Failed to fetch accounts" });
+  }
+});
+
+app.post("/admin/accounts/:id/deactivate", requireSuperAdmin, accountLimiter, async (req, res) => {
+  try {
+    const result = await pool.query("UPDATE accounts SET is_active = false WHERE id = $1 RETURNING id, email", [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+    res.json({ message: "Account deactivated", account: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to deactivate account" });
+  }
+});
+
+app.post("/admin/accounts/:id/activate", requireSuperAdmin, accountLimiter, async (req, res) => {
+  try {
+    const result = await pool.query("UPDATE accounts SET is_active = true WHERE id = $1 RETURNING id, email", [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+    res.json({ message: "Account activated", account: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to activate account" });
+  }
+});
+
 app.get("/admin/export/all", requireSuperAdmin, exportLimiter, async (req, res) => {
   if (!checkExportKey(req, res)) return;
   try {

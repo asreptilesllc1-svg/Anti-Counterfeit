@@ -77,7 +77,14 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 - `POST /billing/checkout`, `POST /billing/portal` — Stripe subscription management
 
 ### Superadmin (`x-admin-key` header — you, not customers)
-- `GET /admin/export/all` — full cross-account backup
+- `GET /admin/overview` — total accounts, plan breakdown, estimated MRR, recent signups, verification volume
+- `GET /admin/accounts` — full account list, searchable by email/business name
+- `POST /admin/accounts/:id/activate` / `deactivate` — manage any customer account directly
+- `GET /admin/export/all` — full cross-account backup (also requires `EXPORT_KEY`)
+
+**`owner-dashboard.html`** is your own private view of the platform — not linked from anywhere customers can see, gated by your `ADMIN_KEY`. This is separate from `admin.html`, which despite the name is actually your *customers'* dashboard (each showing only their own data). Bookmark `owner-dashboard.html` somewhere private; don't link to it from the public site.
+
+Note on the MRR figure: it's estimated from account records (plan × price for active/trialing accounts), not pulled live from Stripe. It'll be exactly right once Stripe billing is fully wired up and driving `subscription_status`, since Stripe is the actual source of truth for real charges.
 
 ## What's honestly still missing
 This backend now backs every claim on the marketing page truthfully — real quotas, real per-tenant branding, real location tracking. Still ahead, not yet built:
