@@ -126,7 +126,21 @@
   async function testKeyAndLoad() {
     try {
       const res = await fetch(`${API_URL}/admin/overview`, { headers: { 'x-admin-key': adminKey } });
-      if (!res.ok) throw new Error('bad key');
+      if (!res.ok) {
+        const errText = document.getElementById('gateErr');
+        if (res.status === 403) {
+          errText.textContent = 'Invalid admin key.';
+        } else if (res.status === 404) {
+          errText.textContent = 'This endpoint isn\'t live yet on the backend - has the latest code been deployed to Render?';
+        } else if (res.status === 500) {
+          errText.textContent = 'Server error - ADMIN_KEY may not be configured on the backend yet.';
+        } else {
+          errText.textContent = `Unexpected error (status ${res.status}).`;
+        }
+        errText.style.display = 'block';
+        sessionStorage.removeItem('ownerAdminKey');
+        return;
+      }
       sessionStorage.setItem('ownerAdminKey', adminKey);
       document.getElementById('gate').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
@@ -134,6 +148,7 @@
       renderOverview(data);
       loadAccounts();
     } catch (e) {
+      document.getElementById('gateErr').textContent = 'Could not reach the backend at all - check your connection or the backend URL.';
       document.getElementById('gateErr').style.display = 'block';
       sessionStorage.removeItem('ownerAdminKey');
     }
