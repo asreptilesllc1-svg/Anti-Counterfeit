@@ -108,6 +108,9 @@
   const keyBox = document.getElementById('keyBox');
   const submitBtn = document.getElementById('submitBtn');
 
+  const requestedPlan = new URLSearchParams(window.location.search).get('plan');
+  const PLAN_LABELS = { starter: 'Starter', growth: 'Growth', business: 'Business' };
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     msg.className = 'msg';
@@ -130,8 +133,36 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Signup failed');
 
-      msg.className = 'msg success';
-      msg.textContent = 'Account created! Save your API key below — you\'ll need it to generate QR codes.';
+      // If they clicked a paid plan on the pricing page, send them straight to
+      // checkout instead of just dropping them on a bare API key screen.
+      if (requestedPlan && PLAN_LABELS[requestedPlan]) {
+        submitBtn.textContent = 'Redirecting to checkout…';
+        try {
+          const checkoutRes = await fetch(`${API_URL}/billing/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': data.account.api_key },
+            body: JSON.stringify({ plan: requestedPlan }),
+          });
+          const checkoutData = await checkoutRes.json();
+          if (checkoutRes.ok && checkoutData.url) {
+            sessionStorage.setItem('apiKey', data.account.api_key);
+            sessionStorage.setItem('businessName', data.account.business_name || '');
+            window.location.href = checkoutData.url;
+            return;
+          }
+          // Billing isn't set up yet - fall through to showing the key,
+          // but be honest that the paid plan wasn't actually applied.
+          msg.className = 'msg success';
+          msg.textContent = `Account created on the Free plan. Billing for ${PLAN_LABELS[requestedPlan]} isn't available yet — we'll be in touch to get you upgraded. Save your API key below.`;
+        } catch (checkoutErr) {
+          msg.className = 'msg success';
+          msg.textContent = `Account created on the Free plan. We couldn't start checkout for ${PLAN_LABELS[requestedPlan]} right now — save your API key below, and we'll follow up about upgrading.`;
+        }
+      } else {
+        msg.className = 'msg success';
+        msg.textContent = 'Account created! Save your API key below — you\'ll need it to generate QR codes.';
+      }
+
       keyBox.style.display = 'block';
       keyBox.textContent = data.account.api_key;
       form.style.display = 'none';

@@ -644,8 +644,8 @@ app.post("/billing/checkout", requireAccount, accountLimiter, async (req, res) =
       client_reference_id: String(req.account.id),
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { plan },
-      success_url: `${VERIFY_BASE_URL}/dashboard.html?billing=success`,
-      cancel_url: `${VERIFY_BASE_URL}/dashboard.html?billing=canceled`,
+      success_url: `${VERIFY_BASE_URL}/admin.html?billing=success`,
+      cancel_url: `${VERIFY_BASE_URL}/admin.html?billing=canceled`,
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -660,7 +660,7 @@ app.post("/billing/portal", requireAccount, accountLimiter, async (req, res) => 
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: req.account.stripe_customer_id,
-      return_url: `${VERIFY_BASE_URL}/dashboard.html`,
+      return_url: `${VERIFY_BASE_URL}/admin.html`,
     });
     res.json({ url: session.url });
   } catch (err) {

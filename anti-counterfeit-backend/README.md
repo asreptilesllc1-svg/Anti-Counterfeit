@@ -42,10 +42,18 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 | `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_BUSINESS` | Stripe Price IDs for each plan |
 
 ### 4. Stripe setup
-1. In Stripe, create three recurring Prices (Starter/Growth/Business) under one Product (or three Products — either works)
-2. Copy each Price ID into the env vars above
-3. Add a webhook endpoint pointing to `https://your-backend.onrender.com/webhooks/stripe`, subscribed to: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
-4. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`
+1. In Stripe, create three recurring Prices (Starter $19/mo, Growth $49/mo, Business $149/mo)
+2. Copy each Price ID into `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_BUSINESS`
+3. Set `STRIPE_SECRET_KEY`
+4. Add a webhook endpoint pointing to `https://your-backend.onrender.com/webhooks/stripe`, subscribed to: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
+5. Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`
+
+**The full purchase flow is wired up end to end:**
+- Landing page pricing buttons link to `signup.html?plan=starter|growth|business`
+- After account creation, if a paid plan was requested, the browser goes straight to Stripe Checkout for that plan
+- On success, Stripe redirects back to `admin.html?billing=success`, which shows a confirmation banner
+- The dashboard's **Billing tab** shows the current plan, lets a customer switch plans anytime (not just at signup), and links to Stripe's own billing portal for updating payment methods or canceling
+- Until Stripe env vars are set, checkout attempts fail gracefully with a clear message rather than pretending to work — accounts land on Free with an honest note that billing isn't live yet
 
 ### 5. Email (Brevo)
 1. Sign up at [brevo.com](https://www.brevo.com) with a **fresh account** (not shared with any other project/domain) — free tier is 300 emails/day, no domain-count limit
