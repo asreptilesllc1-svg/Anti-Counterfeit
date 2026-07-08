@@ -62,6 +62,21 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 - **Disposable email blocking**: signups from known temporary-email domains (Mailinator, Guerrilla Mail, etc.) are rejected with a clear message.
 - **Not yet added, worth considering if bot traffic becomes a real problem**: Cloudflare Turnstile (free, invisible CAPTCHA) on signup/forgot-password for stronger protection against more sophisticated bots that fill honeypot fields correctly.
 
+## Pricing tiers — what's actually gated, verified against the code
+| Feature | Free | Starter | Growth | Business |
+|---|---|---|---|---|
+| Products | 5 total (lifetime) | 50/mo | 250/mo | 1,500/mo |
+| Verification, scan history, risk flags | ✅ | ✅ | ✅ | ✅ |
+| Data export (own data only) | ✅ | ✅ | ✅ | ✅ |
+| Branding (name, logo, color) | ❌ | ✅ | ✅ | ✅ |
+| Logo embedded on QR codes | ❌ | ❌ | ✅ | ✅ |
+| Advanced analytics (trends, top products) | ❌ | ❌ | ✅ | ✅ |
+| Blockchain inscription | ❌ | ❌ | ❌ | ✅ |
+| API rate limit | 60/min | 60/min | 60/min | 300/min |
+| Support quality | Same for everyone, every tier |
+
+Every row here is enforced by `requirePlan(...)` in the code, not just marketing copy — verified deliberately so nothing advertised is aspirational.
+
 ## Endpoints
 
 ### Public (no auth)

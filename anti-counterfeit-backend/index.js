@@ -317,7 +317,8 @@ function checkExportKey(req, res) {
   return true;
 }
 
-// Lightweight in-memory rate limiter (per key, per window)
+// Lightweight in-memory rate limiter (per key, per window).
+// max can be a fixed number or a function of req (used to vary limits by plan).
 const rateBuckets = new Map();
 function rateLimit({ windowMs, max }) {
   return (req, res, next) => {
@@ -329,7 +330,8 @@ function rateLimit({ windowMs, max }) {
       rateBuckets.set(key, bucket);
     }
     bucket.count++;
-    if (bucket.count > max) return res.status(429).json({ error: "Too many requests - slow down" });
+    const effectiveMax = typeof max === "function" ? max(req) : max;
+    if (bucket.count > effectiveMax) return res.status(429).json({ error: "Too many requests - slow down" });
     next();
   };
 }
@@ -343,7 +345,12 @@ setInterval(() => {
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });     // login/verify attempts
 const emailSendLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 }); // signup/forgot-password - each one sends a real email, so cap much tighter
 const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });   // public verification
-const accountLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });  // authenticated account ops
+const accountLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  // Business tier gets meaningfully higher throughput - a real differentiator
+  // for brands running automated integrations, not just a marketing label.
+  max: (req) => (req.account?.plan === "business" ? 300 : 60),
+});
 const exportLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
 
 // Plan gating - some features are only included on higher tiers,
@@ -975,7 +982,7 @@ app.get("/analytics/overview", requireAccount, accountLimiter, async (req, res) 
   }
 });
 
-app.get("/analytics/by-date", requireAccount, accountLimiter, async (req, res) => {
+app.get("/analytics/by-date", requireAccount, requirePlan("growth", "business"), accountLimiter, async (req, res) => {
   try {
     const { days = 30 } = req.query;
     const safeDays = Math.min(Math.max(parseInt(days) || 30, 1), 365);
@@ -995,7 +1002,7 @@ app.get("/analytics/by-date", requireAccount, accountLimiter, async (req, res) =
   }
 });
 
-app.get("/analytics/by-product", requireAccount, accountLimiter, async (req, res) => {
+app.get("/analytics/by-product", requireAccount, requirePlan("growth", "business"), accountLimiter, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.product_id, p.name, COUNT(v.id) as verification_count
