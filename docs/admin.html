@@ -398,11 +398,11 @@
   <div class="container">
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab active" onclick="showTab('overview')">Overview</button>
-      <button class="tab" onclick="showTab('products')">Products</button>
-      <button class="tab" onclick="showTab('verifications')">Verifications</button>
-      <button class="tab" onclick="showTab('analytics')">Analytics</button>
-      <button class="tab" onclick="showTab('billing')">Billing</button>
+      <button class="tab active" onclick="showTab('overview', this)">Overview</button>
+      <button class="tab" onclick="showTab('products', this)">Products</button>
+      <button class="tab" onclick="showTab('verifications', this)">Verifications</button>
+      <button class="tab" onclick="showTab('analytics', this)">Analytics</button>
+      <button class="tab" onclick="showTab('billing', this)">Billing</button>
     </div>
 
     <!-- Overview Tab -->
@@ -586,9 +586,18 @@
     const PLAN_ORDER = ['free', 'starter', 'growth', 'business'];
 
     // Handle landing back here after a Stripe Checkout redirect
+    let pendingUpgradePlan = null;
     (function handleBillingRedirect() {
       const params = new URLSearchParams(window.location.search);
       const billing = params.get('billing');
+      const upgrade = params.get('upgrade');
+
+      if (upgrade && ['starter', 'growth', 'business'].includes(upgrade)) {
+        pendingUpgradePlan = upgrade;
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+
       if (!billing) return;
       const banner = document.getElementById('billingBanner');
       if (billing === 'success') {
@@ -672,7 +681,7 @@
     let allVerifications = [];
 
     // Tab Switching
-    function showTab(tabName) {
+    function showTab(tabName, buttonEl) {
       // Hide all tabs
       document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
@@ -683,7 +692,13 @@
 
       // Show selected tab
       document.getElementById(tabName).classList.add('active');
-      event.target.classList.add('active');
+      if (buttonEl) {
+        buttonEl.classList.add('active');
+      } else {
+        // Called programmatically (no button clicked) - find the matching tab button by its onclick target
+        const btn = Array.from(document.querySelectorAll('.tab')).find(b => b.getAttribute('onclick')?.includes(`'${tabName}'`));
+        if (btn) btn.classList.add('active');
+      }
 
       // Load data for tab
       if (tabName === 'overview') loadOverview();
@@ -1073,7 +1088,13 @@
     }
 
     // Load initial data
-    loadOverview();
+    if (pendingUpgradePlan) {
+      showTab('billing');
+      // Give loadBilling a moment to render the plan cards, then kick off checkout directly.
+      setTimeout(() => upgradeToPlan(pendingUpgradePlan), 400);
+    } else {
+      loadOverview();
+    }
   </script>
 </body>
 </html>

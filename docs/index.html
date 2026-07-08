@@ -617,7 +617,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Up to 50 products / month</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Your name, logo &amp; colors on the verification page</li>
         </ul>
-        <a href="signup.html?plan=starter" class="btn btn-secondary">Get started</a>
+        <a href="signup.html?plan=starter" class="btn btn-secondary" onclick="return routeToPlan(event, 'starter')">Get started</a>
       </div>
       <div class="plan featured">
         <div class="plan-tag">Most popular</div>
@@ -630,7 +630,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Your logo embedded directly on QR codes</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Advanced analytics — trends &amp; top products</li>
         </ul>
-        <a href="signup.html?plan=growth" class="btn btn-primary">Get started</a>
+        <a href="signup.html?plan=growth" class="btn btn-primary" onclick="return routeToPlan(event, 'growth')">Get started</a>
       </div>
       <div class="plan">
         <div class="plan-name">Business</div>
@@ -642,7 +642,7 @@
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Blockchain inscription tools</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>5&times; higher API rate limits for automated workflows</li>
         </ul>
-        <a href="signup.html?plan=business" class="btn btn-secondary">Get started</a>
+        <a href="signup.html?plan=business" class="btn btn-secondary" onclick="return routeToPlan(event, 'business')">Get started</a>
       </div>
     </div>
     <p style="text-align:center; margin-top:24px; color:var(--text-muted); font-size:14px;">Every plan gets the same quality support — including Free. We don't believe your bill should decide how fast we help you.</p>
@@ -706,6 +706,17 @@
 </footer>
 
 <script>
+  // If someone's already logged in and clicks a paid tier, take them straight
+  // to upgrading their existing account instead of forcing a brand-new signup.
+  function routeToPlan(event, plan) {
+    const existingKey = sessionStorage.getItem('apiKey');
+    if (existingKey) {
+      event.preventDefault();
+      window.location.href = `admin.html?upgrade=${plan}`;
+    }
+    return true;
+  }
+
   const seal = document.getElementById('seal');
   const ripple = document.getElementById('ripple');
   const dust = document.getElementById('dust');

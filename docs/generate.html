@@ -588,11 +588,14 @@
     }
 
     function showStatus(message, type) {
-      statusDiv.textContent = message;
+      statusDiv.innerHTML = message;
       statusDiv.className = `status show ${type}`;
-      setTimeout(() => {
-        statusDiv.classList.remove('show');
-      }, 5000);
+      const hasLink = message.includes('<a ');
+      if (!hasLink) {
+        setTimeout(() => {
+          statusDiv.classList.remove('show');
+        }, 5000);
+      }
     }
 
     form.addEventListener('submit', async (e) => {
@@ -644,8 +647,14 @@
           const error = await response.json();
           if ("requiredPlans" in error) {
             // Valid login, just not on a plan that includes this feature -
-            // show the real reason instead of silently logging them out.
-            throw new Error(error.error);
+            // give them a way to actually fix it, not just a "no."
+            const neededPlan = error.requiredPlans[0];
+            const neededLabel = neededPlan.charAt(0).toUpperCase() + neededPlan.slice(1);
+            showStatus(
+              `This needs the ${neededLabel} plan or higher (you're on ${error.currentPlan}). <a href="admin.html?upgrade=${neededPlan}" style="color:#4f46e5; font-weight:600; text-decoration:underline;">Upgrade now &rarr;</a>`,
+              'error'
+            );
+            return;
           }
           sessionStorage.removeItem('apiKey');
           window.location.href = 'login.html';
