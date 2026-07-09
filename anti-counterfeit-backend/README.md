@@ -81,7 +81,7 @@ Set `PRIVATE_KEY` and `PUBLIC_KEY` in Render from the generated `.pem` files. **
 | Advanced analytics (trends, top products) | ❌ | ❌ | ✅ | ✅ |
 | Blockchain inscription | ❌ | ❌ | ❌ | ✅ |
 | API rate limit | 60/min | 60/min | 60/min | 300/min |
-| Support quality | Same for everyone, every tier |
+| Support quality | Same across all paid tiers (Starter/Growth/Business) |
 
 Every row here is enforced by `requirePlan(...)` in the code, not just marketing copy — verified deliberately so nothing advertised is aspirational.
 
