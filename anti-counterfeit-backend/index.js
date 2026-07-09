@@ -65,13 +65,26 @@ app.post("/webhooks/stripe", express.raw({ type: "application/json" }), async (r
         break;
       }
       case "customer.subscription.deleted": {
+        // Subscription is fully, finally gone (Stripe already retried the payment
+        // several times over weeks before reaching this point) - downgrade to
+        // Free rather than lock the account out. They keep using the product,
+        // just back to free-tier limits, instead of being cut off entirely.
         const sub = event.data.object;
-        await pool.query(`UPDATE accounts SET subscription_status = 'canceled' WHERE stripe_subscription_id = $1`, [sub.id]);
+        await pool.query(
+          `UPDATE accounts SET plan = 'free', plan_product_limit = $1, subscription_status = 'active' WHERE stripe_subscription_id = $2`,
+          [PLAN_LIMITS.free, sub.id]
+        );
+        console.log(`⬇️  Subscription ended for ${sub.id} - downgraded to Free, account remains usable`);
         break;
       }
       case "invoice.payment_failed": {
+        // Just record it for visibility (e.g. a dashboard banner prompting them
+        // to update their card). Stripe automatically retries a failed payment
+        // for weeks before giving up - a single failed charge shouldn't lock
+        // anyone out of a product they're actively using.
         const invoice = event.data.object;
         await pool.query(`UPDATE accounts SET subscription_status = 'past_due' WHERE stripe_customer_id = $1`, [invoice.customer]);
+        console.warn(`⚠️  Payment failed for customer ${invoice.customer} - marked past_due, access NOT blocked`);
         break;
       }
     }
@@ -287,9 +300,13 @@ async function requireAccount(req, res, next) {
 
     const account = result.rows[0];
     if (!account.is_active) return res.status(403).json({ error: "Account deactivated" });
-    if (!["active", "trialing"].includes(account.subscription_status)) {
-      return res.status(402).json({ error: "Subscription inactive - please update billing", status: account.subscription_status });
-    }
+    // Note: we deliberately don't block access based on subscription_status here.
+    // A "past_due" account (payment failed, Stripe is auto-retrying) still gets
+    // full access to whatever their current plan allows - a temporary card issue
+    // shouldn't cut someone off from a product they're actively using. Once a
+    // subscription is truly, finally canceled (not just past due), the Stripe
+    // webhook downgrades them to the Free plan automatically, which is a real
+    // constraint (5 products) rather than a hard lockout.
     req.account = account;
     next();
   } catch (err) {
