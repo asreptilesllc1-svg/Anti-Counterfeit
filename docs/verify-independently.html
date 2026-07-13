@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Verify Independently — ProductAuth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#14171c; --panel:#1b1f26; --hairline:rgba(237,238,240,0.1); --text:#edeef0; --text-muted:#979da8; --brass-bright:#e0bc4a; --teal-bright:#58c7bf; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--ink); color:var(--text); font-family:"IBM Plex Sans",sans-serif; line-height:1.7; padding:48px 24px; }
+  .wrap { max-width:720px; margin:0 auto; }
+  a { color:var(--brass-bright); }
+  h1 { font-family:"Fraunces",serif; font-weight:600; font-size:30px; margin-bottom:8px; }
+  .sub { color:var(--text-muted); font-size:15px; margin-bottom:36px; }
+  h2 { font-family:"Fraunces",serif; font-weight:600; font-size:19px; margin:32px 0 10px; }
+  p, li { color:var(--text-muted); font-size:15px; margin-bottom:12px; }
+  ul, ol { padding-left:22px; }
+  code, pre { font-family:"IBM Plex Mono",monospace; font-size:13px; }
+  pre { background:rgba(0,0,0,0.35); border:1px solid var(--hairline); border-radius:10px; padding:16px; overflow-x:auto; color:var(--teal-bright); margin-bottom:16px; }
+  .key-box { background:rgba(0,0,0,0.35); border:1px solid var(--hairline); border-radius:10px; padding:16px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--brass-bright); word-break:break-all; white-space:pre-wrap; margin-bottom:16px; }
+  .callout { background:rgba(224,179,63,0.08); border:1px solid rgba(224,179,63,0.3); border-radius:10px; padding:16px 18px; margin:20px 0; font-size:14px; color:var(--text); }
+  .back { display:inline-block; margin-bottom:28px; color:var(--text-muted); text-decoration:none; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="index.html" class="back">&larr; ProductAuth</a>
+  <h1>Verify Independently</h1>
+  <p class="sub">How to confirm a product's authenticity without needing ProductAuth's website — for auditors, technically inclined customers, or as a continuity plan if this business ever changes hands or shuts down.</p>
+
+  <div class="callout">
+    <strong>Why this page exists:</strong> the trust behind every QR code doesn't actually come from our website — it comes from a cryptographic signature. Anyone with the public key below can verify a code's authenticity using standard, freely available tools, with or without ProductAuth's servers running.
+  </div>
+
+  <h2>How the system works</h2>
+  <p>Every product's QR code encodes a URL containing a signed token — a standard JSON Web Token (JWT), signed with the RS256 algorithm (RSA + SHA-256). This is a widely documented, industry-standard cryptographic format, not something proprietary to us.</p>
+  <p>The token's payload contains the product's ID, name, batch, and an internal account reference. The signature proves that whoever created this token possessed the private signing key — which is never shared, never leaves secured infrastructure, and cannot be forged.</p>
+
+  <h2>The public key</h2>
+  <p>This key can verify any token ever issued by this platform. It is safe to share publicly — that is the entire point of public-key cryptography; only the private key (never published) can create new valid signatures, while the public key can only check them.</p>
+  <div class="key-box">[PASTE YOUR PUBLIC_KEY CONTENTS HERE — the same value set as PUBLIC_KEY in Render. This is your public key, safe to publish in full.]</div>
+  <p><em>Once inscribed on the Dogecoin blockchain (planned), this key will also be retrievable independent of this website at all, via any Doginals explorer, permanently.</em> <span id="inscriptionNote">[Inscription ID to be added here once completed.]</span></p>
+
+  <h2>Verifying a token yourself</h2>
+  <p>Take the token from a product's QR code — it's the part of the URL after <code>?p=</code>. Using any standard JWT library (available in virtually every programming language), verify it against the public key above using the RS256 algorithm. For example, in Node.js:</p>
+  <pre>const jwt = require("jsonwebtoken");
+const decoded = jwt.verify(signedToken, publicKey, { algorithms: ["RS256"] });
+console.log(decoded);</pre>
+  <p>If verification succeeds, the token is authentic and the payload (product ID, name, batch) is exactly what was originally signed — this cannot be forged or altered without invalidating the signature. This check works whether or not ProductAuth's servers are online.</p>
+
+  <h2>What this doesn't tell you</h2>
+  <p>Independent verification confirms a code was genuinely issued by this platform and hasn't been tampered with. It does not tell you scan history, risk flags, or whether a specific product has been individually deactivated by its issuing brand — that information lives in our database, not in the token itself.</p>
+
+  <h2>Continuity commitment</h2>
+  <p>[This section is for you to fill in with an actual policy decision — for example, a commitment to maintain DNS/verification availability for a minimum period, or to publish the public key and this verification method permanently regardless of the business's future, so that already-issued codes remain checkable by anyone who needs to.]</p>
+
+  <p style="margin-top:32px; font-size:13px; color:var(--text-muted);">Questions: <a href="mailto:hello@myproductauth.com">hello@myproductauth.com</a></p>
+</div>
+</body>
+</html>
