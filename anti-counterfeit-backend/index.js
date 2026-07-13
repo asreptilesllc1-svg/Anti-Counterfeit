@@ -204,19 +204,34 @@ function isValidEmail(email) {
 // ================================
 async function calculateRiskLevel(accountId, productId) {
   try {
-    const result = await pool.query(
-      `SELECT COUNT(*) as count,
-              COUNT(DISTINCT location_city) FILTER (WHERE location_city IS NOT NULL) as distinct_cities
+    // Signal 1: burst activity - the same code appearing in multiple DIFFERENT
+    // places within a day. This is the "physically impossible" signal: a
+    // single tag can't legitimately be scanned in two distant cities within
+    // 24 hours, since shipping doesn't move that fast. Deliberately not
+    // volume-based - someone scanning their own item 20 times in an afternoon
+    // to show it off to friends is all one city and should never be flagged.
+    const burstResult = await pool.query(
+      `SELECT COUNT(DISTINCT location_city) FILTER (WHERE location_city IS NOT NULL) as distinct_cities
        FROM verifications
        WHERE account_id = $1 AND product_id = $2 AND verified_at > NOW() - INTERVAL '24 hours'`,
       [accountId, productId]
     );
-    const count = parseInt(result.rows[0].count);
-    const cities = parseInt(result.rows[0].distinct_cities);
-    // High: heavy scan volume OR the same code appearing in 3+ different cities within a day
-    if (count > 10 || cities >= 3) return "high";
-    // Medium: elevated volume OR the same code in 2 different cities
-    if (count > 3 || cities === 2) return "medium";
+    const burstCities = parseInt(burstResult.rows[0].distinct_cities);
+
+    // Signal 2: how many DIFFERENT places this code has ever been scanned
+    // from, over its whole life - same principle, just over a longer window.
+    // A tag actually circulating as a clone shows up in many different places
+    // over time; that's the real signal, never raw volume.
+    const spreadResult = await pool.query(
+      `SELECT COUNT(DISTINCT location_city) as distinct_cities
+       FROM verifications
+       WHERE account_id = $1 AND product_id = $2 AND location_city IS NOT NULL`,
+      [accountId, productId]
+    );
+    const lifetimeCities = parseInt(spreadResult.rows[0].distinct_cities);
+
+    if (burstCities >= 3 || lifetimeCities >= 11) return "high";
+    if (burstCities === 2 || lifetimeCities >= 8) return "medium";
     return "low";
   } catch (err) {
     console.error("Error calculating risk:", err);
@@ -699,10 +714,10 @@ app.post("/sign-qr", requireAccount, accountLimiter, enforceProductQuota, async 
 
   try {
     const tokenPayload = { ...payload, account_id: req.account.id };
-    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
+    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256" });
     const verifyUrl = `${VERIFY_BASE_URL}/verify.html?p=${encodeURIComponent(signedToken)}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-      errorCorrectionLevel: "M",
+      errorCorrectionLevel: "H",
       margin: 2,
       scale: 10,
       color: { dark: "#000000", light: "#FFFFFF" },
@@ -742,7 +757,7 @@ app.post("/sign-qr-with-logo", requireAccount, requirePlan("growth", "business")
 
   try {
     const tokenPayload = { ...productData, account_id: req.account.id };
-    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256", expiresIn: "10y" });
+    const signedToken = jwt.sign({ data: tokenPayload }, PRIVATE_KEY, { algorithm: "RS256" });
     const verifyUrl = `${VERIFY_BASE_URL}/verify.html?p=${encodeURIComponent(signedToken)}`;
 
     let logoBuffer = null;
