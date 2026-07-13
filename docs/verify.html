@@ -265,7 +265,7 @@ function showDetails(data) {
   }
   let chain = '';
   if (data.inscriptionId) {
-    chain = `<div class="chain-badge"><strong style="color:var(--accent)">⛓ Inscribed on Dogecoin</strong><br><a href="https://wonky-ord.dogeord.io/inscription/${encodeURIComponent(data.inscriptionId)}" target="_blank" rel="noopener">View permanent on-chain record</a></div>`;
+    chain = `<div class="chain-badge"><strong style="color:var(--accent)">⛓ Inscribed on Dogecoin</strong><br><a href="https://doggy.market/inscription/${encodeURIComponent(data.inscriptionId)}" target="_blank" rel="noopener">View permanent on-chain record</a></div>`;
   }
   detailsEl.innerHTML = `<div class="meta">${rows}${chain}</div>`;
 }
